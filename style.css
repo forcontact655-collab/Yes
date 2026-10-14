@@ -6,20 +6,20 @@
   color-scheme: dark;
 
   /* базовые цвета */
-  --bg: #0b0714;
-  --bg-2: #150d28;
-  --text: #ece7f7;
-  --muted: #9a92b4;
+  --bg: #07040d;
+  --bg-2: #120a22;
+  --text: #f1edfa;
+  --muted: #a69ec2;
 
   /* фиолетовая палитра */
-  --violet-100: #f1ebff;
-  --violet-200: #ddd0ff;
-  --violet-300: #c4b0fd;
-  --violet-400: #a78bfa;
+  --violet-100: #f5f0ff;
+  --violet-200: #e2d7ff;
+  --violet-300: #c9b8ff;
+  --violet-400: #a98bfa;
   --violet-500: #8b5cf6;
   --violet-600: #7c3aed;
-  --violet-700: #5b21b6;
-  --orchid: #e879f9;
+  --violet-700: #4c1d95;
+  --orchid: #f0abfc;
 
   --accent: var(--violet-400);
   --accent-2: var(--violet-600);
@@ -64,9 +64,10 @@ body {
   color: var(--text);
   background-color: var(--bg);
   background-image:
-    radial-gradient(900px 480px at 12% -8%, rgba(124, 58, 237, 0.34) 0%, transparent 62%),
-    radial-gradient(760px 420px at 96% 4%, rgba(232, 121, 249, 0.16) 0%, transparent 58%),
-    radial-gradient(700px 520px at 50% 108%, rgba(91, 33, 182, 0.24) 0%, transparent 62%);
+    radial-gradient(1000px 540px at 10% -10%, rgba(124, 58, 237, 0.38) 0%, transparent 60%),
+    radial-gradient(800px 460px at 100% 0%, rgba(232, 121, 249, 0.18) 0%, transparent 58%),
+    radial-gradient(900px 600px at 50% 115%, rgba(91, 33, 182, 0.3) 0%, transparent 62%),
+    linear-gradient(180deg, #0b0616 0%, var(--bg) 100%);
   background-attachment: fixed;
   font-family: var(--mono);
   font-size: 14px;

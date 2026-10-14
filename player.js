@@ -790,19 +790,31 @@
     }
     autoplayState = 'trying';
 
+    var fallbackTimer = window.setTimeout(function () {
+      if (autoplayState === 'trying' && !gateOpen && !revealed) {
+        try { audio.pause(); } catch (err) {}
+        openGate();
+      }
+    }, 380);
+
     var promise = audio.play();
     if (!promise || typeof promise.then !== 'function') {
+      window.clearTimeout(fallbackTimer);
       autoplayState = 'done';
       triggerReveal();
       return;
     }
 
     promise.then(function () {
+      window.clearTimeout(fallbackTimer);
+      if (gateOpen) closeGate();
       ensureAudioGraph();
       autoplayState = 'done';
       triggerReveal();
       setStatus('');
     }).catch(function () {
+      window.clearTimeout(fallbackTimer);
+      if (gateOpen) return;
       if (audio.error) {
         autoplayState = 'done';
         triggerReveal();

@@ -29,8 +29,7 @@
   var particlesCanvas = $('bg-particles');
   var langSwitch = $('lang-switch');
 
-  var LANG_KEY = 'somewhat-empty.lang.v1';
-  var currentLang = loadLang();
+  var currentLang = 'ru';
   var statusKey = '';
   var lastTimeStr = '--:--';
 
@@ -88,20 +87,6 @@
   function t(key) {
     var dict = I18N[currentLang] || I18N.ru;
     return dict[key] || I18N.ru[key] || '';
-  }
-
-  function loadLang() {
-    try {
-      var saved = window.localStorage.getItem(LANG_KEY);
-      if (saved === 'en' || saved === 'ru') return saved;
-    } catch (err) {}
-    return 'ru';
-  }
-
-  function saveLang(lang) {
-    try {
-      window.localStorage.setItem(LANG_KEY, lang);
-    } catch (err) {}
   }
 
   initMoscowClock();
@@ -909,7 +894,6 @@
     var next = lang === 'en' ? 'en' : 'ru';
     if (next === currentLang) return;
     currentLang = next;
-    saveLang(currentLang);
     applyLang();
   }
 

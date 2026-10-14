@@ -940,25 +940,62 @@ body.is-audio-playing .eq.is-live span {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .social-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
-  font-size: 0.76rem;
+  gap: 8px;
+}
+
+.social-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px;
+  border: 1px solid rgba(196, 176, 253, 0.34);
+  border-radius: 999px;
+  color: var(--violet-100);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.32), rgba(232, 121, 249, 0.16));
+  box-shadow: 0 4px 14px rgba(76, 29, 149, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1.5;
+  text-decoration: none;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.social-pill:hover {
+  color: #fff;
+  text-decoration: none;
+  transform: translateY(-1px);
+  border-color: rgba(226, 215, 255, 0.58);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.46), rgba(240, 171, 252, 0.24));
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.social-pill:active {
+  transform: scale(0.96);
+}
+
+.social-pill__icon {
+  width: 13px;
+  height: 13px;
+  color: var(--violet-200);
 }
 
 .profile-time {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 9px;
+  padding: 3px 11px;
   border: 1px solid rgba(196, 176, 253, 0.24);
   border-radius: 999px;
   color: var(--violet-200);
   background: rgba(124, 58, 237, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   font-size: 0.64rem;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
@@ -1519,11 +1556,6 @@ body.gate-open {
   .profile-subtitle {
     margin: 6px 0 11px;
     font-size: 0.69rem;
-  }
-
-  .social-links {
-    gap: 14px;
-    font-size: 0.71rem;
   }
 
   .project-section {

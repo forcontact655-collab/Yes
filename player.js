@@ -22,6 +22,13 @@
   var gate = $('enter-gate');
   var enterBtn = $('enter-btn');
   var soundHint = $('sound-hint');
+  var eq = $('eq');
+  var eqBars = eq ? Array.prototype.slice.call(eq.querySelectorAll('span')) : [];
+  var mskTimeText = $('msk-time-text');
+  var particlesCanvas = $('bg-particles');
+
+  initMoscowClock();
+  initBackgroundParticles();
 
   if (!audio || !player) return;
 
@@ -43,6 +50,18 @@
   var entered = false;
   var autoMuted = false;
   var unlockBound = false;
+
+  var audioCtx = null;
+  var analyser = null;
+  var freqData = null;
+  var webAudioFailed = false;
+  var eqSmooth = [0.3, 0.3, 0.3, 0.3];
+  var EQ_BANDS = [
+    { from: 1, to: 3, boost: 1.05 },
+    { from: 4, to: 9, boost: 1.22 },
+    { from: 10, to: 20, boost: 1.42 },
+    { from: 21, to: 38, boost: 1.68 }
+  ];
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
@@ -106,6 +125,89 @@
     if (statusEl.textContent === next) return;
     statusEl.textContent = next;
     player.classList.toggle('has-error', next === STATUS.error);
+  }
+
+  function ensureAudioGraph() {
+    if (webAudioFailed || !eqBars.length) return;
+    if (!audioCtx) {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) {
+        webAudioFailed = true;
+        return;
+      }
+      try {
+        audioCtx = new Ctx();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.72;
+        var source = audioCtx.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+      } catch (err) {
+        webAudioFailed = true;
+        audioCtx = null;
+        analyser = null;
+        return;
+      }
+    }
+    if (audioCtx.state === 'suspended' && typeof audioCtx.resume === 'function') {
+      try {
+        var p = audioCtx.resume();
+        if (p && typeof p.then === 'function') {
+          p.then(function () {
+            if (eq && audioCtx.state === 'running') eq.classList.add('is-live');
+          }).catch(function () {});
+        }
+      } catch (err) {}
+    }
+    if (eq && audioCtx.state === 'running') {
+      eq.classList.add('is-live');
+    }
+  }
+
+  function resetEqualizerBars() {
+    if (!eqBars.length) return;
+    for (var i = 0; i < eqBars.length; i++) {
+      eqSmooth[i] = 0.3;
+      eqBars[i].style.height = '';
+      eqBars[i].style.opacity = '';
+    }
+  }
+
+  function renderEqualizer() {
+    if (!analyser || !freqData || !eqBars.length || !audioCtx || audioCtx.state !== 'running') return;
+    if (eq && !eq.classList.contains('is-live')) eq.classList.add('is-live');
+
+    if (audio.paused || audio.ended || audio.muted || audio.volume === 0) {
+      for (var j = 0; j < eqBars.length; j++) {
+        eqSmooth[j] = eqSmooth[j] * 0.8 + 0.24 * 0.2;
+        eqBars[j].style.height = (eqSmooth[j] * 100).toFixed(1) + '%';
+        eqBars[j].style.opacity = '0.5';
+      }
+      return;
+    }
+
+    analyser.getByteFrequencyData(freqData);
+    var maxBin = freqData.length - 1;
+
+    for (var i = 0; i < eqBars.length; i++) {
+      var band = EQ_BANDS[i] || EQ_BANDS[0];
+      var start = clamp(band.from, 0, maxBin);
+      var end = clamp(band.to, start, maxBin);
+      var sum = 0;
+      var count = 0;
+      for (var b = start; b <= end; b++) {
+        sum += freqData[b];
+        count++;
+      }
+      var avg = count > 0 ? (sum / count) / 255 : 0;
+      var shaped = Math.pow(avg, 0.85) * band.boost;
+      var target = clamp(0.18 + shaped * 0.86, 0.18, 1);
+      eqSmooth[i] = eqSmooth[i] * 0.42 + target * 0.58;
+      eqBars[i].style.height = (eqSmooth[i] * 100).toFixed(1) + '%';
+      eqBars[i].style.opacity = (0.55 + eqSmooth[i] * 0.45).toFixed(2);
+    }
   }
 
   function progressTime() {
@@ -190,6 +292,7 @@
 
   function tick() {
     renderProgress();
+    renderEqualizer();
     rafId = window.requestAnimationFrame(tick);
   }
 
@@ -202,6 +305,7 @@
       window.cancelAnimationFrame(rafId);
       rafId = 0;
     }
+    resetEqualizerBars();
     renderProgress();
   }
 
@@ -210,9 +314,13 @@
       setStatus('');
       audio.load();
     }
+    if (audioCtx && audioCtx.state === 'suspended' && typeof audioCtx.resume === 'function') {
+      try { audioCtx.resume(); } catch (err) {}
+    }
     var promise = audio.play();
     if (promise && typeof promise.then === 'function') {
       promise.then(function () {
+        ensureAudioGraph();
         setStatus('');
       }).catch(function () {
         if (!audio.error) setStatus(STATUS.blocked);
@@ -236,7 +344,11 @@
 
   playBtn.addEventListener('click', togglePlay);
 
-  audio.addEventListener('play', function () { renderPlayState(); startTicker(); });
+  audio.addEventListener('play', function () {
+    ensureAudioGraph();
+    renderPlayState();
+    startTicker();
+  });
   audio.addEventListener('pause', function () { renderPlayState(); stopTicker(); });
   audio.addEventListener('ended', function () {
     renderPlayState();
@@ -248,7 +360,11 @@
   audio.addEventListener('waiting', function () { renderBuffering(true); });
   audio.addEventListener('seeking', function () { renderBuffering(true); });
   audio.addEventListener('canplay', function () { renderBuffering(false); });
-  audio.addEventListener('playing', function () { renderBuffering(false); setStatus(''); });
+  audio.addEventListener('playing', function () {
+    ensureAudioGraph();
+    renderBuffering(false);
+    setStatus('');
+  });
 
   audio.addEventListener('loadedmetadata', renderDuration);
   audio.addEventListener('durationchange', renderDuration);
@@ -503,6 +619,7 @@
       savePrefs();
     }
     hideSoundHint();
+    ensureAudioGraph();
     if (audio.paused) play();
     setStatus('');
   }
@@ -584,6 +701,7 @@
     }
 
     promise.then(function () {
+      ensureAudioGraph();
       autoplayState = 'done';
       setStatus('');
     }).catch(function () {
@@ -633,6 +751,145 @@
       enter(false);
     }
   });
+
+  function initMoscowClock() {
+    if (!mskTimeText) return;
+    var formatter = null;
+    try {
+      formatter = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch (err) {}
+
+    function updateClock() {
+      var now = new Date();
+      var timeStr = '';
+      if (formatter) {
+        try {
+          timeStr = formatter.format(now);
+        } catch (err) {}
+      }
+      if (!timeStr) {
+        var utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+        var msk = new Date(utcMs + 3 * 3600000);
+        var hh = msk.getHours();
+        var mm = msk.getMinutes();
+        timeStr = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+      }
+      mskTimeText.textContent = 'МСК · ' + timeStr;
+    }
+
+    updateClock();
+    window.setInterval(updateClock, 10000);
+  }
+
+  function initBackgroundParticles() {
+    if (!particlesCanvas || !particlesCanvas.getContext) return;
+    var ctx = particlesCanvas.getContext('2d');
+    if (!ctx) return;
+
+    var reducedMotion = false;
+    try {
+      reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch (err) {}
+
+    var width = 0;
+    var height = 0;
+    var dpr = 1;
+    var particles = [];
+    var animId = 0;
+    var COLORS = [
+      '169, 139, 250',
+      '201, 184, 255',
+      '240, 171, 252',
+      '139, 92, 246'
+    ];
+
+    function resize() {
+      width = window.innerWidth || document.documentElement.clientWidth || 360;
+      height = window.innerHeight || document.documentElement.clientHeight || 640;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      particlesCanvas.width = Math.round(width * dpr);
+      particlesCanvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      var targetCount = width < 600 ? 26 : 40;
+      while (particles.length < targetCount) {
+        particles.push(createParticle(true));
+      }
+      if (particles.length > targetCount) {
+        particles.length = targetCount;
+      }
+    }
+
+    function createParticle(randomY) {
+      return {
+        x: Math.random() * (width || 360),
+        y: randomY ? Math.random() * (height || 640) : (height || 640) + 10,
+        r: 0.9 + Math.random() * 1.7,
+        vx: (Math.random() - 0.5) * 0.22,
+        vy: -(0.12 + Math.random() * 0.24),
+        alpha: 0.16 + Math.random() * 0.36,
+        phase: Math.random() * Math.PI * 2,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)]
+      };
+    }
+
+    function drawFrame() {
+      ctx.clearRect(0, 0, width, height);
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+        if (!reducedMotion) {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.phase += 0.018;
+
+          if (p.y < -10) {
+            p.y = height + 10;
+            p.x = Math.random() * width;
+          }
+          if (p.x < -10) p.x = width + 10;
+          else if (p.x > width + 10) p.x = -10;
+        }
+
+        var twinkle = reducedMotion ? 1 : (0.75 + 0.25 * Math.sin(p.phase));
+        var a = clamp(p.alpha * twinkle, 0.06, 0.65);
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + p.color + ', ' + a.toFixed(3) + ')';
+        ctx.fill();
+      }
+
+      if (!reducedMotion && !document.hidden) {
+        animId = window.requestAnimationFrame(drawFrame);
+      } else {
+        animId = 0;
+      }
+    }
+
+    resize();
+    drawFrame();
+
+    window.addEventListener('resize', function () {
+      resize();
+      if (reducedMotion) drawFrame();
+    });
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) {
+        if (animId) {
+          window.cancelAnimationFrame(animId);
+          animId = 0;
+        }
+      } else if (!reducedMotion && !animId) {
+        animId = window.requestAnimationFrame(drawFrame);
+      }
+    });
+  }
 
   audio.volume = prefs.volume;
   audio.muted = prefs.muted;

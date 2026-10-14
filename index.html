@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <canvas class="bg-particles" id="bg-particles" aria-hidden="true"></canvas>
   <a class="skip-link" href="#main-content">Перейти к содержимому</a>
 
   <header class="site-header">
@@ -102,13 +103,22 @@
       </section>
 
       <div class="profile-row">
-        <img class="profile-avatar" src="IMG_20261014_145535_242.jpg" alt="Аватар Somewhat_empty" width="88" height="88">
+        <div class="profile-avatar-wrap">
+          <img class="profile-avatar" src="IMG_20261014_145535_242.jpg" alt="Аватар Somewhat_empty" width="88" height="88">
+          <span class="profile-status-dot" aria-hidden="true"></span>
+        </div>
         <div class="profile-details">
           <h1 class="profile-name">Somewhat_empty</h1>
           <p class="profile-subtitle">Telegram Plugins/Bots • Android RE</p>
-          <nav class="social-links" aria-label="Социальные сети">
-            <a href="https://t.me/Somewhat_empty" target="_blank" rel="noopener noreferrer">Telegram</a>
-          </nav>
+          <div class="profile-meta">
+            <nav class="social-links" aria-label="Социальные сети">
+              <a href="https://t.me/Somewhat_empty" target="_blank" rel="noopener noreferrer">Telegram</a>
+            </nav>
+            <span class="profile-time" id="msk-time" aria-label="Московское время">
+              <span class="profile-time__dot" aria-hidden="true"></span>
+              <span id="msk-time-text">МСК · --:--</span>
+            </span>
+          </div>
         </div>
       </div>
     </div>

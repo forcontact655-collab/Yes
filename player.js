@@ -32,6 +32,22 @@
   var currentLang = 'ru';
   var statusKey = '';
   var lastTimeStr = '--:--';
+  var revealed = false;
+
+  document.body.classList.add('has-reveal');
+
+  function triggerReveal() {
+    if (revealed) return;
+    revealed = true;
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        document.body.classList.add('is-revealed');
+        window.setTimeout(function () {
+          document.body.classList.add('reveal-done');
+        }, 1650);
+      });
+    });
+  }
 
   var I18N = {
     ru: {
@@ -712,6 +728,7 @@
     if (entered) return;
     entered = true;
     closeGate();
+    triggerReveal();
     if (silent) {
       autoplayState = 'done';
       return;
@@ -755,22 +772,28 @@
   }
 
   function attemptAutoplay() {
-    if (AUTOPLAY_MODE === 'off' || autoplayState !== 'idle') return;
+    if (AUTOPLAY_MODE === 'off' || autoplayState !== 'idle') {
+      if (AUTOPLAY_MODE === 'off') triggerReveal();
+      return;
+    }
     autoplayState = 'trying';
 
     var promise = audio.play();
     if (!promise || typeof promise.then !== 'function') {
       autoplayState = 'done';
+      triggerReveal();
       return;
     }
 
     promise.then(function () {
       ensureAudioGraph();
       autoplayState = 'done';
+      triggerReveal();
       setStatus('');
     }).catch(function () {
       if (audio.error) {
         autoplayState = 'done';
+        triggerReveal();
         return;
       }
 
@@ -782,6 +805,7 @@
         if (quiet && typeof quiet.then === 'function') {
           quiet.then(function () {
             autoplayState = 'muted';
+            triggerReveal();
             armSoundUnlock();
           }).catch(function () {
             autoMuted = false;
@@ -791,6 +815,7 @@
           });
         } else {
           autoplayState = 'muted';
+          triggerReveal();
           armSoundUnlock();
         }
         return;

@@ -1098,10 +1098,10 @@ body.is-audio-playing .eq.is-live span {
   justify-content: center;
   text-align: center;
   padding: 22px 22px 20px;
-  border: 1px solid var(--card-border);
+  border: 1px solid rgba(196, 176, 253, 0.34);
   border-radius: 18px;
   background:
-    linear-gradient(155deg, rgba(124, 58, 237, 0.16) 0%, rgba(19, 11, 37, 0.78) 52%, rgba(232, 121, 249, 0.08) 100%);
+    linear-gradient(145deg, rgba(124, 58, 237, 0.24) 0%, rgba(22, 12, 42, 0.82) 48%, rgba(240, 171, 252, 0.15) 100%);
   box-shadow:
     0 12px 32px rgba(8, 4, 18, 0.48),
     inset 0 1px 0 rgba(241, 235, 255, 0.08);
@@ -1122,7 +1122,7 @@ body.is-audio-playing .eq.is-live span {
   inset: 0 0 auto;
   height: 68%;
   border-radius: inherit;
-  background: radial-gradient(62% 100% at 50% 0%, rgba(167, 139, 250, 0.16) 0%, transparent 72%);
+  background: radial-gradient(65% 100% at 50% 0%, rgba(240, 171, 252, 0.2) 0%, rgba(167, 139, 250, 0.12) 45%, transparent 75%);
   pointer-events: none;
   z-index: -1;
   transition: opacity 0.24s ease;
@@ -1150,10 +1150,10 @@ body.is-audio-playing .eq.is-live span {
   height: 34px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(196, 176, 253, 0.32);
+  border: 1px solid rgba(240, 171, 252, 0.42);
   border-radius: 10px;
-  color: var(--violet-200);
-  background: linear-gradient(140deg, rgba(124, 58, 237, 0.34), rgba(91, 33, 182, 0.18));
+  color: var(--violet-100);
+  background: linear-gradient(140deg, rgba(139, 92, 246, 0.48), rgba(232, 121, 249, 0.28));
   box-shadow:
     0 6px 16px rgba(76, 29, 149, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
@@ -1177,10 +1177,10 @@ body.is-audio-playing .eq.is-live span {
   display: inline-flex;
   align-items: center;
   padding: 3px 9px;
-  border: 1px solid rgba(196, 176, 253, 0.24);
+  border: 1px solid rgba(240, 171, 252, 0.34);
   border-radius: 999px;
-  color: var(--violet-300);
-  background: rgba(124, 58, 237, 0.16);
+  color: var(--violet-100);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.32), rgba(232, 121, 249, 0.2));
   font-size: 0.58rem;
   font-weight: 500;
   letter-spacing: 0.12em;

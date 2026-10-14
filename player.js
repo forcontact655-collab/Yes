@@ -1,207 +1,464 @@
+/*
+ * Player for somewhat_empty.
+ *
+ * Что здесь починено относительно старой версии:
+ *  - длительность больше не залипает на «0:00», если метаданные успели
+ *    загрузиться до подключения скрипта (проверяем readyState/duration сразу);
+ *  - перемотка не «залипает» в режиме драга: состояние сбрасывается по
+ *    pointerup/pointercancel на окне, а не только на самом слайдере;
+ *  - пробел не срабатывает дважды, когда фокус на кнопке (click + keydown);
+ *  - музыка не стартует от любого случайного клика по странице;
+ *  - меню скорости не содержит фокусируемых кнопок в aria-hidden,
+ *    закрыто через hidden и управляется с клавиатуры;
+ *  - есть обработка ошибки загрузки, буферизации и бесконечной длительности;
+ *  - громкость/скорость/повтор сохраняются между визитами;
+ *  - добавлен Media Session (управление с экрана блокировки Android).
+ */
 (function () {
   'use strict';
 
-  const audio = document.getElementById('audio');
-  const player = document.getElementById('player');
-  const playBtn = document.getElementById('play-btn');
-  const seek = document.getElementById('seek');
-  const seekFill = document.getElementById('seek-fill');
-  const currentTimeEl = document.getElementById('current-time');
-  const durationEl = document.getElementById('duration-time');
-  const volumeSlider = document.getElementById('volume');
-  const volumeFill = document.getElementById('volume-fill');
-  const muteBtn = document.getElementById('mute-btn');
-  const speedBtn = document.getElementById('speed-btn');
-  const speedMenu = document.getElementById('speed-menu');
-  const speedLabel = document.getElementById('speed-label');
-  const autoplayStatus = document.getElementById('autoplay-status');
+  function $(id) { return document.getElementById(id); }
+
+  var audio = $('audio');
+  var player = $('player');
+  var playBtn = $('play-btn');
+  var seek = $('seek');
+  var seekFill = $('seek-fill');
+  var seekBuffer = $('seek-buffer');
+  var currentTimeEl = $('current-time');
+  var durationEl = $('duration-time');
+  var volumeSlider = $('volume');
+  var volumeFill = $('volume-fill');
+  var muteBtn = $('mute-btn');
+  var loopBtn = $('loop-btn');
+  var speedBtn = $('speed-btn');
+  var speedMenu = $('speed-menu');
+  var speedLabel = $('speed-label');
+  var statusEl = $('player-status');
 
   if (!audio || !player) return;
 
-  // ---------- Utilities ----------
+  var SEEK_MAX = 1000;          // слайдер живёт в промилле, а не в секундах
+  var STORE_KEY = 'somewhat-empty.player.v1';
+  var TRACK = {
+    title: 'Красавица (sped up)',
+    artist: 'ЯРЧЕ СОЛНЦА',
+    album: 'Somewhat_empty'
+  };
+
+  var prefs = loadPrefs();
+  var pendingTime = null;       // время, которое пользователь надрагивает
+  var scrubbing = false;
+  var rafId = 0;
+  var autoplayTried = false;
+
+  // ---------- Утилиты ----------
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
   function formatTime(sec) {
-    if (!isFinite(sec) || sec < 0) return '0:00';
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return m + ':' + (s < 10 ? '0' : '') + s;
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    sec = Math.floor(sec);
+    var h = Math.floor(sec / 3600);
+    var m = Math.floor((sec % 3600) / 60);
+    var s = sec % 60;
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
   }
 
-  function updateSeekFill() {
-    const val = parseFloat(seek.value);
-    seekFill.style.width = val + '%';
+  function duration() {
+    var d = audio.duration;
+    return (typeof d === 'number' && isFinite(d) && d > 0) ? d : 0;
   }
 
-  function updateVolumeFill() {
-    const v = parseFloat(volumeSlider.value);
-    volumeFill.style.width = (v * 100) + '%';
+  function loadPrefs() {
+    var defaults = { volume: 0.8, muted: false, rate: 1, loop: false };
+    try {
+      var raw = window.localStorage.getItem(STORE_KEY);
+      if (!raw) return defaults;
+      var parsed = JSON.parse(raw) || {};
+      return {
+        volume: clamp(typeof parsed.volume === 'number' ? parsed.volume : defaults.volume, 0, 1),
+        muted: !!parsed.muted,
+        rate: clamp(typeof parsed.rate === 'number' ? parsed.rate : defaults.rate, 0.5, 2),
+        loop: !!parsed.loop
+      };
+    } catch (err) {
+      return defaults;
+    }
   }
 
-  // ---------- Play / Pause ----------
+  var saveTimer = 0;
+  function savePrefs() {
+    // пишем не чаще раза в 400 мс и в самом конце
+    if (saveTimer) return;
+    saveTimer = window.setTimeout(function () {
+      saveTimer = 0;
+      try {
+        window.localStorage.setItem(STORE_KEY, JSON.stringify({
+          volume: audio.volume,
+          muted: audio.muted,
+          rate: audio.playbackRate,
+          loop: audio.loop
+        }));
+      } catch (err) { /* приватный режим — не страшно */ }
+    }, 400);
+  }
 
-  let isSeeking = false;
+  var STATUS = {
+    blocked: 'Нажмите ▶, чтобы включить звук',
+    error: 'Аудио не загрузилось — нажмите ▶ для повтора',
+    loading: 'Буферизация…'
+  };
+
+  function setStatus(text) {
+    if (!statusEl) return;
+    var next = text || '';
+    if (statusEl.textContent === next) return;
+    statusEl.textContent = next;
+    player.classList.toggle('has-error', next === STATUS.error);
+  }
+
+  // ---------- Отрисовка ----------
+
+  function progressTime() {
+    return pendingTime !== null ? pendingTime : (audio.currentTime || 0);
+  }
+
+  function renderProgress() {
+    var d = duration();
+    var t = clamp(progressTime(), 0, d || progressTime());
+    var ratio = d > 0 ? t / d : 0;
+
+    seekFill.style.width = (ratio * 100).toFixed(3) + '%';
+    if (!scrubbing) seek.value = String(Math.round(ratio * SEEK_MAX));
+
+    currentTimeEl.textContent = formatTime(t);
+    seek.setAttribute('aria-valuetext', formatTime(t) + ' из ' + formatTime(d));
+  }
+
+  function renderBuffer() {
+    var d = duration();
+    var pct = 0;
+    if (d > 0 && audio.buffered && audio.buffered.length) {
+      var end = audio.buffered.end(audio.buffered.length - 1);
+      pct = clamp((end / d) * 100, 0, 100);
+    }
+    seekBuffer.style.width = pct.toFixed(2) + '%';
+  }
+
+  function renderDuration() {
+    var d = duration();
+    durationEl.textContent = formatTime(d);
+    renderProgress();
+    renderBuffer();
+    updatePositionState();
+  }
+
+  function renderVolume() {
+    var v = audio.muted ? 0 : audio.volume;
+    volumeFill.style.width = (v * 100).toFixed(1) + '%';
+    if (document.activeElement !== volumeSlider) {
+      volumeSlider.value = String(Math.round(audio.volume * 100));
+    }
+    volumeSlider.setAttribute('aria-valuetext', Math.round(v * 100) + '%');
+
+    var muted = audio.muted || audio.volume === 0;
+    player.classList.toggle('is-muted', muted);
+    muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    muteBtn.setAttribute('aria-label', muted ? 'Включить звук' : 'Выключить звук');
+    muteBtn.classList.toggle('is-quiet', !muted && audio.volume > 0 && audio.volume < 0.5);
+  }
+
+  function renderPlayState() {
+    var playing = !audio.paused && !audio.ended;
+    player.classList.toggle('is-playing', playing);
+    document.body.classList.toggle('is-audio-playing', playing);
+    playBtn.setAttribute('aria-label', playing ? 'Пауза' : 'Воспроизвести');
+    if (playing && statusEl && statusEl.textContent !== STATUS.error) setStatus('');
+    updatePositionState();
+  }
+
+  function renderBuffering(isBuffering) {
+    player.classList.toggle('is-buffering', !!isBuffering);
+  }
+
+  function renderRate() {
+    var r = audio.playbackRate;
+    speedLabel.textContent = (Math.round(r * 100) / 100) + '×';
+    var items = speedMenu.querySelectorAll('button[data-speed]');
+    Array.prototype.forEach.call(items, function (btn) {
+      var active = parseFloat(btn.dataset.speed) === r;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-checked', active ? 'true' : 'false');
+    });
+  }
+
+  function renderLoop() {
+    player.classList.toggle('is-looping', audio.loop);
+    loopBtn.classList.toggle('is-active', audio.loop);
+    loopBtn.setAttribute('aria-pressed', audio.loop ? 'true' : 'false');
+    loopBtn.setAttribute('aria-label', audio.loop ? 'Повтор трека: включён' : 'Повтор трека: выключен');
+  }
+
+  // Плавная перемотка по requestAnimationFrame вместо редких timeupdate
+  function tick() {
+    renderProgress();
+    rafId = window.requestAnimationFrame(tick);
+  }
+
+  function startTicker() {
+    if (!rafId) rafId = window.requestAnimationFrame(tick);
+  }
+
+  function stopTicker() {
+    if (rafId) {
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+    renderProgress();
+  }
+
+  // ---------- Воспроизведение ----------
+
+  function play() {
+    if (audio.error) {
+      // Пробуем загрузить источник заново.
+      setStatus('');
+      audio.load();
+    }
+    var promise = audio.play();
+    if (promise && typeof promise.then === 'function') {
+      promise.then(function () {
+        setStatus('');
+      }).catch(function () {
+        if (!audio.error) setStatus(STATUS.blocked);
+      });
+    }
+  }
 
   function togglePlay() {
-    if (audio.paused) {
-      audio.play().catch(() => {
-        autoplayStatus.textContent = 'Tap Play to start';
-        autoplayStatus.classList.add('is-blocked');
-      });
-    } else {
-      audio.pause();
-    }
+    if (audio.paused || audio.ended) play();
+    else audio.pause();
+  }
+
+  function seekTo(time) {
+    var d = duration();
+    if (!d) return;
+    try {
+      audio.currentTime = clamp(time, 0, d);
+    } catch (err) { /* источник ещё не готов */ }
+    renderProgress();
   }
 
   playBtn.addEventListener('click', togglePlay);
 
-  audio.addEventListener('play', () => {
-    player.classList.add('is-playing');
-    playBtn.setAttribute('aria-label', 'Pause');
-    autoplayStatus.textContent = '';
-    autoplayStatus.classList.remove('is-blocked');
+  audio.addEventListener('play', function () { renderPlayState(); startTicker(); });
+  audio.addEventListener('pause', function () { renderPlayState(); stopTicker(); });
+  audio.addEventListener('ended', function () {
+    renderPlayState();
+    stopTicker();
+    pendingTime = null;
+    if (!audio.loop) seekTo(0);
   });
 
-  audio.addEventListener('pause', () => {
-    player.classList.remove('is-playing');
-    playBtn.setAttribute('aria-label', 'Play');
+  audio.addEventListener('waiting', function () { renderBuffering(true); });
+  audio.addEventListener('seeking', function () { renderBuffering(true); });
+  audio.addEventListener('canplay', function () { renderBuffering(false); });
+  audio.addEventListener('playing', function () { renderBuffering(false); setStatus(''); });
+
+  audio.addEventListener('loadedmetadata', renderDuration);
+  audio.addEventListener('durationchange', renderDuration);
+  audio.addEventListener('progress', renderBuffer);
+  audio.addEventListener('timeupdate', function () {
+    if (!rafId) renderProgress();   // страховка, если rAF недоступен
+  });
+  audio.addEventListener('volumechange', function () { renderVolume(); savePrefs(); });
+  audio.addEventListener('ratechange', function () { renderRate(); savePrefs(); updatePositionState(); });
+
+  audio.addEventListener('error', function () {
+    renderBuffering(false);
+    stopTicker();
+    setStatus(STATUS.error);
+    playBtn.setAttribute('aria-label', 'Повторить загрузку');
   });
 
-  // ---------- Time / Seek ----------
+  // ---------- Перемотка ----------
 
-  audio.addEventListener('loadedmetadata', () => {
-    seek.max = audio.duration || 100;
-    durationEl.textContent = formatTime(audio.duration);
-    updateSeekFill();
+  function beginScrub() {
+    scrubbing = true;
+    player.classList.add('is-scrubbing');
+  }
+
+  function updateScrub() {
+    var d = duration();
+    var ratio = clamp(parseFloat(seek.value) / SEEK_MAX, 0, 1);
+    pendingTime = d > 0 ? ratio * d : 0;
+    renderProgress();
+  }
+
+  function commitScrub() {
+    if (pendingTime !== null) seekTo(pendingTime);
+    pendingTime = null;
+    scrubbing = false;
+    player.classList.remove('is-scrubbing');
+    renderProgress();
+  }
+
+  seek.addEventListener('pointerdown', beginScrub);
+  seek.addEventListener('input', updateScrub);
+  seek.addEventListener('change', commitScrub);
+
+  // Сбрасываем драг, даже если палец/курсор ушёл за пределы слайдера.
+  window.addEventListener('pointerup', function () {
+    if (scrubbing) commitScrub();
+  });
+  window.addEventListener('pointercancel', function () {
+    if (scrubbing) commitScrub();
+  });
+  window.addEventListener('blur', function () {
+    if (scrubbing) commitScrub();
   });
 
-  audio.addEventListener('timeupdate', () => {
-    if (!isSeeking && audio.duration) {
-      seek.value = audio.currentTime;
-      seek.max = audio.duration;
-      updateSeekFill();
-      currentTimeEl.textContent = formatTime(audio.currentTime);
-    }
-  });
-
-  audio.addEventListener('ended', () => {
-    audio.currentTime = 0;
-    player.classList.remove('is-playing');
-  });
-
-  const startSeek = () => { isSeeking = true; };
-  const endSeek = () => {
-    isSeeking = false;
-    audio.currentTime = parseFloat(seek.value);
-  };
-
-  seek.addEventListener('input', () => {
-    updateSeekFill();
-    currentTimeEl.textContent = formatTime(parseFloat(seek.value));
-  });
-  seek.addEventListener('mousedown', startSeek);
-  seek.addEventListener('touchstart', startSeek, { passive: true });
-  seek.addEventListener('change', endSeek);
-  seek.addEventListener('mouseup', endSeek);
-  seek.addEventListener('touchend', endSeek);
-
-  // ---------- Volume ----------
-
-  let lastVolume = 0.8;
+  // ---------- Громкость ----------
 
   function setVolume(v) {
-    v = Math.max(0, Math.min(1, v));
-    audio.volume = v;
-    volumeSlider.value = v;
-    updateVolumeFill();
-    if (v > 0) {
-      player.classList.remove('is-muted');
-      muteBtn.setAttribute('aria-label', 'Mute');
-      lastVolume = v;
-    } else {
-      player.classList.add('is-muted');
-      muteBtn.setAttribute('aria-label', 'Unmute');
-    }
+    audio.volume = clamp(v, 0, 1);
+    if (audio.volume > 0 && audio.muted) audio.muted = false;
+    renderVolume();
+    savePrefs();
   }
 
-  volumeSlider.addEventListener('input', () => {
-    setVolume(parseFloat(volumeSlider.value));
-  });
-
-  muteBtn.addEventListener('click', () => {
-    if (audio.volume > 0) {
-      lastVolume = audio.volume;
-      setVolume(0);
-    } else {
-      setVolume(lastVolume || 0.8);
-    }
-  });
-
-  // Initialize volume
-  setVolume(0.8);
-
-  // ---------- Playback Speed ----------
-
-  function setSpeed(speed) {
-    speed = parseFloat(speed);
-    audio.playbackRate = speed;
-    speedLabel.textContent = speed + '×';
-    const btns = speedMenu.querySelectorAll('button');
-    btns.forEach((b) => {
-      b.classList.toggle('is-active', parseFloat(b.dataset.speed) === speed);
-    });
+  function toggleMute() {
+    audio.muted = !audio.muted;
+    if (!audio.muted && audio.volume === 0) audio.volume = 0.8;
+    renderVolume();
+    savePrefs();
   }
 
-  speedBtn.addEventListener('click', (e) => {
+  volumeSlider.addEventListener('input', function () {
+    setVolume(parseFloat(volumeSlider.value) / 100);
+  });
+  volumeSlider.addEventListener('change', function () {
+    setVolume(parseFloat(volumeSlider.value) / 100);
+  });
+
+  muteBtn.addEventListener('click', toggleMute);
+
+  loopBtn.addEventListener('click', function () {
+    audio.loop = !audio.loop;
+    renderLoop();
+    savePrefs();
+  });
+
+  // ---------- Скорость ----------
+
+  function setSpeed(rate) {
+    audio.playbackRate = clamp(parseFloat(rate) || 1, 0.5, 4);
+    renderRate();
+    savePrefs();
+  }
+
+  function menuItems() {
+    return Array.prototype.slice.call(speedMenu.querySelectorAll('button[data-speed]'));
+  }
+
+  function openMenu() {
+    speedMenu.hidden = false;
+    speedBtn.setAttribute('aria-expanded', 'true');
+    player.classList.add('speed-open');
+    var active = menuItems().filter(function (b) { return b.classList.contains('is-active'); })[0];
+    (active || menuItems()[0]).focus();
+  }
+
+  function closeMenu(returnFocus) {
+    if (speedMenu.hidden) return;
+    speedMenu.hidden = true;
+    speedBtn.setAttribute('aria-expanded', 'false');
+    player.classList.remove('speed-open');
+    if (returnFocus !== false) speedBtn.focus();
+  }
+
+  speedBtn.addEventListener('click', function (e) {
     e.stopPropagation();
-    const open = speedMenu.classList.toggle('is-open');
-    speedMenu.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (speedMenu.hidden) openMenu();
+    else closeMenu(false);
   });
 
-  speedMenu.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-speed]');
+  speedMenu.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var btn = e.target.closest ? e.target.closest('button[data-speed]') : null;
     if (!btn) return;
     setSpeed(btn.dataset.speed);
-    speedMenu.classList.remove('is-open');
-    speedMenu.setAttribute('aria-hidden', 'true');
-    speedBtn.focus();
+    closeMenu();
   });
 
-  document.addEventListener('click', (e) => {
-    if (!speedMenu.contains(e.target) && e.target !== speedBtn) {
-      speedMenu.classList.remove('is-open');
-      speedMenu.setAttribute('aria-hidden', 'true');
+  speedMenu.addEventListener('keydown', function (e) {
+    var items = menuItems();
+    var index = items.indexOf(document.activeElement);
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        items[(index + 1 + items.length) % items.length].focus();
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        items[(index - 1 + items.length) % items.length].focus();
+        break;
+      case 'Home':
+        e.preventDefault();
+        items[0].focus();
+        break;
+      case 'End':
+        e.preventDefault();
+        items[items.length - 1].focus();
+        break;
+      case 'Escape':
+        e.preventDefault();
+        closeMenu();
+        break;
+      case 'Tab':
+        closeMenu(false);
+        break;
     }
   });
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      speedMenu.classList.remove('is-open');
-      speedMenu.setAttribute('aria-hidden', 'true');
-    }
+  document.addEventListener('click', function () { closeMenu(false); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeMenu(false);
   });
 
-  // ---------- Keyboard shortcuts ----------
+  // ---------- Горячие клавиши ----------
 
-  document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    switch (e.code) {
+  function isTypingTarget(el) {
+    if (!el || !el.tagName) return false;
+    var tag = el.tagName.toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (el.isContentEditable) return true;
+    // Пробел/Enter на кнопке уже сам нажимает её — не дублируем.
+    if (tag === 'BUTTON' || tag === 'A') return true;
+    if (typeof el.closest === 'function' && el.closest('[role="menuitemradio"]')) return true;
+    return false;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (isTypingTarget(e.target)) return;
+
+    switch (e.code || e.key) {
       case 'Space':
+      case 'KeyK':
+      case ' ':
         e.preventDefault();
         togglePlay();
         break;
-      case 'ArrowLeft':
-        if (e.shiftKey) {
-          audio.currentTime = Math.max(0, audio.currentTime - 10);
-        } else {
-          audio.currentTime = Math.max(0, audio.currentTime - 5);
-        }
-        break;
       case 'ArrowRight':
-        if (e.shiftKey) {
-          audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10);
-        } else {
-          audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5);
-        }
+        e.preventDefault();
+        seekTo(audio.currentTime + (e.shiftKey ? 10 : 5));
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        seekTo(audio.currentTime - (e.shiftKey ? 10 : 5));
         break;
       case 'ArrowUp':
         e.preventDefault();
@@ -212,54 +469,102 @@
         setVolume(audio.volume - 0.05);
         break;
       case 'KeyM':
-        muteBtn.click();
+        toggleMute();
+        break;
+      case 'KeyL':
+        loopBtn.click();
         break;
     }
   });
 
-  // ---------- Autoplay attempt ----------
-  // Strategy: try to play unmuted first. If blocked, most browsers will
-  // reject the promise; we surface a subtle hint instead of auto-muting
-  // (which would bypass autoplay policy but is a bad UX).
+  // ---------- Media Session (экран блокировки / наушники) ----------
 
-  function attemptAutoplay() {
-    const promise = audio.play();
-    if (promise !== undefined) {
-      promise.then(() => {
-        autoplayStatus.textContent = '';
-        autoplayStatus.classList.remove('is-blocked');
-      }).catch(() => {
-        // Autoplay with sound blocked by the browser.
-        // We do NOT silently mute — show a gentle prompt.
-        autoplayStatus.textContent = 'Click Play to unmute';
-        autoplayStatus.classList.add('is-blocked');
+  function updatePositionState() {
+    if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+    var d = duration();
+    if (!d) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: d,
+        playbackRate: audio.playbackRate || 1,
+        position: clamp(audio.currentTime || 0, 0, d)
       });
-    }
+    } catch (err) { /* не все браузеры принимают эти значения */ }
   }
 
-  // Try immediately
-  attemptAutoplay();
+  function setupMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    try {
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: TRACK.title,
+        artist: TRACK.artist,
+        album: TRACK.album
+      });
 
-  // Some browsers need a brief moment; retry once after a tick.
-  window.addEventListener('load', () => {
-    if (audio.paused) {
-      setTimeout(attemptAutoplay, 200);
+      var handlers = {
+        play: function () { play(); },
+        pause: function () { audio.pause(); },
+        seekbackward: function (details) { seekTo(audio.currentTime - (details.seekOffset || 10)); },
+        seekforward: function (details) { seekTo(audio.currentTime + (details.seekOffset || 10)); },
+        seekto: function (details) { if (details.seekTime != null) seekTo(details.seekTime); }
+      };
+
+      Object.keys(handlers).forEach(function (action) {
+        try { navigator.mediaSession.setActionHandler(action, handlers[action]); } catch (err) { /* не поддерживается */ }
+      });
+    } catch (err) { /* MediaMetadata недоступен */ }
+  }
+
+  // ---------- Автозапуск ----------
+  // Пробуем ровно один раз и без «сюрпризов»: больше музыка не стартует
+  // от случайного клика где-то на странице.
+
+  function attemptAutoplay() {
+    if (autoplayTried) return;
+    autoplayTried = true;
+    play();
+  }
+
+  // ---------- Инициализация ----------
+
+  audio.volume = prefs.volume;
+  audio.muted = prefs.muted;
+  audio.loop = prefs.loop;
+  try {
+    audio.playbackRate = prefs.rate;
+  } catch (err) {
+    prefs.rate = 1;
+  }
+
+  seek.max = String(SEEK_MAX);
+  volumeSlider.value = String(Math.round(prefs.volume * 100));
+
+  renderVolume();
+  renderRate();
+  renderLoop();
+  renderPlayState();
+  renderBuffering(false);
+  setupMediaSession();
+
+  // Метаданные могли загрузиться до подключения скрипта — не ждём события.
+  renderDuration();
+
+  if (audio.readyState >= 3) attemptAutoplay();
+  else audio.addEventListener('canplay', attemptAutoplay, { once: true });
+
+  window.addEventListener('pagehide', function () {
+    stopTicker();
+    if (saveTimer) {
+      window.clearTimeout(saveTimer);
+      saveTimer = 0;
+      try {
+        window.localStorage.setItem(STORE_KEY, JSON.stringify({
+          volume: audio.volume,
+          muted: audio.muted,
+          rate: audio.playbackRate,
+          loop: audio.loop
+        }));
+      } catch (err) { /* ignore */ }
     }
-  });
-
-  // If user interacts anywhere on the page before they've played, try again
-  // (browsers count this as a user activation gesture).
-  let interacted = false;
-  const resumeOnInteract = () => {
-    if (interacted || !audio.paused) return;
-    interacted = true;
-    audio.play().then(() => {
-      autoplayStatus.textContent = '';
-      autoplayStatus.classList.remove('is-blocked');
-    }).catch(() => { /* still blocked, leave the prompt */ });
-  };
-
-  ['click', 'touchstart', 'keydown'].forEach((evt) => {
-    document.addEventListener(evt, resumeOnInteract, { once: true, passive: true });
   });
 })();

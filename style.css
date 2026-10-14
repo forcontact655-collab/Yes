@@ -795,6 +795,21 @@ body.is-audio-playing .eq span {
     inset 0 0 0 1px rgba(232, 121, 249, 0.22);
 }
 
+/* --- Тихий старт (режим muted): трек идёт, звука пока нет --- */
+
+.player.is-silent {
+  border-color: rgba(232, 121, 249, 0.36);
+}
+
+.player.is-silent .player__seek-fill {
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.72), rgba(196, 176, 253, 0.72));
+  box-shadow: none;
+}
+
+.player.is-silent .player__play {
+  filter: saturate(0.75);
+}
+
 /* --- Состояние ошибки --- */
 
 .player.has-error {
@@ -967,6 +982,261 @@ body.is-audio-playing .eq span {
 }
 
 /* ==========================================================================
+   Экран входа «click to enter»
+   Показывается, только если браузер не дал включить звук сам.
+   ========================================================================== */
+
+body.gate-open {
+  overflow: hidden;
+}
+
+.enter-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(720px 480px at 50% 10%, rgba(124, 58, 237, 0.45) 0%, transparent 62%),
+    radial-gradient(560px 420px at 88% 94%, rgba(232, 121, 249, 0.2) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(8, 4, 17, 0.95) 0%, rgba(19, 10, 37, 0.97) 100%);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.42s ease, visibility 0.42s ease;
+}
+
+.enter-gate[hidden] {
+  display: none;
+}
+
+.enter-gate.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.enter-gate__glow {
+  position: absolute;
+  inset: -25%;
+  background: conic-gradient(from 0deg,
+    rgba(124, 58, 237, 0) 0deg,
+    rgba(167, 139, 250, 0.18) 80deg,
+    rgba(232, 121, 249, 0.14) 170deg,
+    rgba(124, 58, 237, 0) 260deg);
+  filter: blur(70px);
+  animation: gate-spin 22s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes gate-spin {
+  to { transform: rotate(360deg); }
+}
+
+.enter-gate__inner {
+  position: relative;
+  display: flex;
+  max-width: 440px;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: gate-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes gate-in {
+  from { transform: translateY(16px) scale(0.97); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+.enter-gate__label {
+  margin: 0;
+  color: var(--violet-300);
+  font-size: 0.64rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+
+.enter-gate__track {
+  margin: 10px 0 0;
+  color: var(--violet-100);
+  font-size: clamp(1.15rem, 5vw, 1.6rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+  text-shadow: 0 0 34px rgba(167, 139, 250, 0.5);
+}
+
+.enter-gate__track span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.enter-gate__artist {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.07em;
+}
+
+.enter-gate__cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 30px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--violet-100);
+  font-family: var(--mono);
+  cursor: pointer;
+}
+
+/* Виниловый диск */
+
+.enter-gate__disc {
+  position: relative;
+  display: flex;
+  width: 108px;
+  height: 108px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #2b1653 0 17%, #150b28 18% 100%);
+  box-shadow:
+    0 20px 54px rgba(76, 29, 149, 0.6),
+    inset 0 0 0 1px rgba(196, 176, 253, 0.3),
+    inset 0 2px 0 rgba(255, 255, 255, 0.12);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s ease;
+}
+
+.enter-gate__disc::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 30%,
+      rgba(255, 255, 255, 0) 66%, rgba(232, 121, 249, 0.16) 100%),
+    repeating-radial-gradient(circle at 50% 50%,
+      rgba(196, 176, 253, 0.13) 0 1px,
+      rgba(0, 0, 0, 0) 1px 6px);
+  animation: gate-spin 14s linear infinite;
+}
+
+.enter-gate__disc::after {
+  content: "";
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--violet-500), var(--violet-600) 55%, #6d28d9);
+  box-shadow: 0 6px 20px rgba(109, 40, 217, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.enter-gate__disc-ring {
+  position: absolute;
+  inset: -10px;
+  border: 1px solid rgba(196, 176, 253, 0.5);
+  border-radius: 50%;
+  animation: halo 2.6s ease-out infinite;
+}
+
+.enter-gate__play {
+  position: relative;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  margin-left: 3px;
+  color: #fff;
+  filter: drop-shadow(0 1px 3px rgba(30, 10, 60, 0.5));
+}
+
+.enter-gate__cta:hover .enter-gate__disc {
+  transform: scale(1.07);
+  box-shadow:
+    0 26px 66px rgba(124, 58, 237, 0.7),
+    inset 0 0 0 1px rgba(221, 208, 255, 0.5);
+}
+
+.enter-gate__cta:active .enter-gate__disc {
+  transform: scale(0.98);
+}
+
+.enter-gate__cta-text {
+  color: var(--violet-200);
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  animation: hint-blink 2.6s ease-in-out infinite;
+}
+
+.enter-gate__hint {
+  margin: 22px 0 0;
+  color: var(--muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  line-height: 1.6;
+  opacity: 0.8;
+}
+
+@keyframes hint-blink {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+.enter-gate__cta:focus-visible {
+  outline: none;
+}
+
+.enter-gate__cta:focus-visible .enter-gate__disc {
+  outline: 2px solid var(--violet-200);
+  outline-offset: 8px;
+}
+
+/* ---------- Кнопка «включить звук» (режим muted-автозапуска) ---------- */
+
+.sound-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border: 1px solid rgba(196, 176, 253, 0.42);
+  border-radius: 999px;
+  color: var(--violet-100);
+  background: linear-gradient(140deg, rgba(124, 58, 237, 0.55), rgba(232, 121, 249, 0.3));
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
+  animation: hint-pulse 2.4s ease-in-out infinite;
+  transition: transform 0.16s ease, filter 0.2s ease;
+}
+
+.sound-hint[hidden] {
+  display: none;
+}
+
+.sound-hint:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.sound-hint .icon {
+  width: 13px;
+  height: 13px;
+}
+
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.45), 0 4px 16px rgba(124, 58, 237, 0.4); }
+  50%      { box-shadow: 0 0 0 7px rgba(167, 139, 250, 0), 0 4px 16px rgba(124, 58, 237, 0.4); }
+}
+
+/* ==========================================================================
    Адаптив
    ========================================================================== */
 
@@ -996,6 +1266,30 @@ body.is-audio-playing .eq span {
 
   .now-playing__side {
     max-width: 40%;
+  }
+
+  .enter-gate {
+    padding: 20px;
+  }
+
+  .enter-gate__disc {
+    width: 92px;
+    height: 92px;
+  }
+
+  .enter-gate__disc::after {
+    width: 40px;
+    height: 40px;
+  }
+
+  .enter-gate__cta {
+    margin-top: 24px;
+    gap: 14px;
+  }
+
+  .enter-gate__hint {
+    margin-top: 18px;
+    font-size: 0.58rem;
   }
 
   .now-playing__status {

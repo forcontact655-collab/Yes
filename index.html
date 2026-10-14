@@ -26,6 +26,10 @@
               <span></span><span></span><span></span><span></span>
             </div>
             <p class="now-playing__status" id="player-status" role="status" aria-live="polite"></p>
+            <button class="sound-hint" id="sound-hint" type="button" hidden>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 00-2.5-4.03v8.05A4.5 4.5 0 0016.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77S18.01 4.14 14 3.23z" fill="currentColor"/></svg>
+              <span>включить звук</span>
+            </button>
           </div>
         </div>
 
@@ -158,6 +162,27 @@
       <p>root@Somewhat_empty · 2026</p>
     </div>
   </footer>
+
+  <!-- Экран входа: один клик = разрешение браузера на звук.
+       Показывается только если автозапуск со звуком заблокирован. -->
+  <div class="enter-gate" id="enter-gate" role="dialog" aria-modal="true" aria-labelledby="enter-gate-title" hidden>
+    <div class="enter-gate__glow" aria-hidden="true"></div>
+    <div class="enter-gate__inner">
+      <p class="enter-gate__label" id="enter-gate-title">NOW PLAYING</p>
+      <p class="enter-gate__track">Красавица <span>(sped up)</span></p>
+      <p class="enter-gate__artist">ЯРЧЕ СОЛНЦА</p>
+
+      <button class="enter-gate__cta" id="enter-btn" type="button">
+        <span class="enter-gate__disc" aria-hidden="true">
+          <span class="enter-gate__disc-ring"></span>
+          <svg class="enter-gate__play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.14v13.72L19 12 8 5.14z" fill="currentColor"/></svg>
+        </span>
+        <span class="enter-gate__cta-text">click to enter</span>
+      </button>
+
+      <p class="enter-gate__hint">трек заиграет сразу со звуком · можно нажать в любом месте</p>
+    </div>
+  </div>
 
   <script src="player.js"></script>
 </body>

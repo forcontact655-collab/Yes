@@ -35,8 +35,21 @@
   var speedMenu = $('speed-menu');
   var speedLabel = $('speed-label');
   var statusEl = $('player-status');
+  var gate = $('enter-gate');
+  var enterBtn = $('enter-btn');
+  var soundHint = $('sound-hint');
 
   if (!audio || !player) return;
+
+  /*
+   * Режим автозапуска:
+   *   'gate'  — если звук без жеста запрещён, показываем экран «click to enter»
+   *             (как на zet.is-a.dev): один клик — и трек играет со звуком;
+   *   'muted' — трек стартует сразу без звука (это разрешают все браузеры),
+   *             а звук включается по первому клику/тапу/клавише;
+   *   'off'   — ничего не делаем, ждём нажатия кнопки play.
+   */
+  var AUTOPLAY_MODE = 'gate';
 
   var SEEK_MAX = 1000;          // слайдер живёт в промилле, а не в секундах
   var STORE_KEY = 'somewhat-empty.player.v1';
@@ -50,7 +63,11 @@
   var pendingTime = null;       // время, которое пользователь надрагивает
   var scrubbing = false;
   var rafId = 0;
-  var autoplayTried = false;
+  var autoplayState = 'idle';   // idle | trying | done | muted | gate
+  var gateOpen = false;
+  var entered = false;
+  var autoMuted = false;        // играем тихо в ожидании первого жеста
+  var unlockBound = false;
 
   // ---------- Утилиты ----------
 
@@ -442,6 +459,7 @@
   }
 
   document.addEventListener('keydown', function (e) {
+    if (gateOpen) return;                  // заставка перехватывает клавиши
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     if (isTypingTarget(e.target)) return;
 
@@ -516,14 +534,168 @@
   }
 
   // ---------- Автозапуск ----------
-  // Пробуем ровно один раз и без «сюрпризов»: больше музыка не стартует
-  // от случайного клика где-то на странице.
+  /*
+   * Браузер запрещает включать звук без жеста пользователя, и обойти это
+   * нельзя — можно только получить жест как можно раньше. Порядок такой:
+   *
+   *  1. пробуем со звуком: сработает, если браузер уже разрешает
+   *     (высокий Media Engagement Index для сайта, разрешение пользователя,
+   *     активация на странице уже есть);
+   *  2. не вышло → экран входа «click to enter» (режим 'gate') — клик по нему
+   *     и есть тот самый жест, после которого звук разрешён;
+   *     либо тихий старт (режим 'muted') + включение звука по первому жесту.
+   */
+
+  function hasActivation() {
+    try {
+      return !!(navigator.userActivation && navigator.userActivation.hasBeenActive);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function startAudible() {
+    if (autoMuted) {
+      autoMuted = false;
+      audio.muted = false;
+      renderVolume();
+      savePrefs();
+    }
+    hideSoundHint();
+    if (audio.paused) play();
+    setStatus('');
+  }
+
+  function openGate() {
+    if (!gate || gateOpen) return;
+    gateOpen = true;
+    autoplayState = 'gate';
+    gate.hidden = false;
+    document.body.classList.add('gate-open');
+    // кадр на отрисовку, чтобы переход появления сработал
+    window.requestAnimationFrame(function () {
+      gate.classList.add('is-visible');
+      if (enterBtn) enterBtn.focus();
+    });
+  }
+
+  function closeGate() {
+    if (!gate || !gateOpen) return;
+    gateOpen = false;
+    document.body.classList.remove('gate-open');
+    gate.classList.remove('is-visible');
+    window.setTimeout(function () { gate.hidden = true; }, 420);
+  }
+
+  function enter(silent) {
+    if (entered) return;
+    entered = true;
+    closeGate();
+    if (silent) {
+      autoplayState = 'done';
+      return;
+    }
+    autoplayState = 'done';
+    startAudible();
+  }
+
+  function showSoundHint() {
+    if (!soundHint) return;
+    soundHint.hidden = false;
+    player.classList.add('is-silent');
+  }
+
+  function hideSoundHint() {
+    if (!soundHint) return;
+    soundHint.hidden = true;
+    player.classList.remove('is-silent');
+  }
+
+  // Режим 'muted': трек уже идёт, звук включаем на первом же жесте.
+  function armSoundUnlock() {
+    showSoundHint();
+    if (unlockBound) return;
+    unlockBound = true;
+
+    var unlock = function () {
+      if (!autoMuted) return;
+      detach();
+      startAudible();
+    };
+    var detach = function () {
+      ['pointerdown', 'keydown', 'touchend'].forEach(function (evt) {
+        document.removeEventListener(evt, unlock, true);
+      });
+      unlockBound = false;
+    };
+
+    ['pointerdown', 'keydown', 'touchend'].forEach(function (evt) {
+      document.addEventListener(evt, unlock, true);   // capture: срабатываем раньше всех
+    });
+  }
 
   function attemptAutoplay() {
-    if (autoplayTried) return;
-    autoplayTried = true;
-    play();
+    if (AUTOPLAY_MODE === 'off' || autoplayState !== 'idle') return;
+    autoplayState = 'trying';
+
+    var promise = audio.play();
+    if (!promise || typeof promise.then !== 'function') {
+      autoplayState = 'done';
+      return;
+    }
+
+    promise.then(function () {
+      autoplayState = 'done';
+      setStatus('');
+    }).catch(function () {
+      if (audio.error) {
+        autoplayState = 'done';
+        return;   // источник не грузится — заставка тут не поможет
+      }
+
+      if (AUTOPLAY_MODE === 'muted') {
+        autoMuted = true;
+        audio.muted = true;
+        renderVolume();
+        var quiet = audio.play();
+        if (quiet && typeof quiet.then === 'function') {
+          quiet.then(function () {
+            autoplayState = 'muted';
+            armSoundUnlock();
+          }).catch(function () {
+            autoMuted = false;
+            audio.muted = prefs.muted;
+            renderVolume();
+            openGate();   // даже тихий старт запрещён — остаётся экран входа
+          });
+        } else {
+          autoplayState = 'muted';
+          armSoundUnlock();
+        }
+        return;
+      }
+
+      openGate();
+    });
   }
+
+  if (gate) gate.addEventListener('click', function () { enter(false); });
+  if (soundHint) soundHint.addEventListener('click', function (e) { e.stopPropagation(); startAudible(); });
+
+  document.addEventListener('keydown', function (e) {
+    if (!gateOpen) return;
+    if (e.key === 'Escape') {
+      // Просто убираем заставку, сайт можно смотреть и без музыки.
+      e.preventDefault();
+      enter(true);
+      return;
+    }
+    // Любой Enter/пробел на заставке = войти со звуком.
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') {
+      e.preventDefault();
+      enter(false);
+    }
+  });
 
   // ---------- Инициализация ----------
 
@@ -549,8 +721,13 @@
   // Метаданные могли загрузиться до подключения скрипта — не ждём события.
   renderDuration();
 
-  if (audio.readyState >= 3) attemptAutoplay();
-  else audio.addEventListener('canplay', attemptAutoplay, { once: true });
+  // Активация уже есть (например, пользователь вернулся на страницу) —
+  // заставка не нужна, звук разрешат и так.
+  attemptAutoplay();
+  audio.addEventListener('canplay', function () {
+    if (autoplayState === 'idle' || autoplayState === 'trying') attemptAutoplay();
+  });
+  if (hasActivation() && autoplayState === 'gate') enter(false);
 
   window.addEventListener('pagehide', function () {
     stopTicker();

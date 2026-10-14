@@ -24,13 +24,94 @@
   var soundHint = $('sound-hint');
   var eq = $('eq');
   var eqBars = eq ? Array.prototype.slice.call(eq.querySelectorAll('span')) : [];
+  var mskTimeEl = $('msk-time');
   var mskTimeText = $('msk-time-text');
   var particlesCanvas = $('bg-particles');
+  var langSwitch = $('lang-switch');
+
+  var LANG_KEY = 'somewhat-empty.lang.v1';
+  var currentLang = loadLang();
+  var statusKey = '';
+  var lastTimeStr = '--:--';
+
+  var I18N = {
+    ru: {
+      skip: 'Перейти к содержимому',
+      unmuteHint: 'включить звук',
+      xiosDesc: 'Меняет внешний вид телеграм под iOS стиль.',
+      xassistDesc: 'Умный помощник на базе ИИ прямо в телеграм.',
+      xdevelopDesc: 'Мой канал со всеми проектами и последними обновлениями для них.',
+      channelCta: 'Перейти',
+      mskPrefix: 'МСК · ',
+      mskLabel: 'Московское время',
+      play: 'Воспроизвести',
+      pause: 'Пауза',
+      retry: 'Повторить загрузку',
+      seekLabel: 'Перемотка',
+      seekOf: ' из ',
+      volumeLabel: 'Громкость',
+      mute: 'Выключить звук',
+      unmute: 'Включить звук',
+      loopOn: 'Повтор трека: включён',
+      loopOff: 'Повтор трека: выключен',
+      speedLabel: 'Скорость воспроизведения',
+      statusBlocked: 'Нажмите ▶, чтобы включить звук',
+      statusError: 'Аудио не загрузилось — нажмите ▶ для повтора',
+      statusLoading: 'Буферизация…'
+    },
+    en: {
+      skip: 'Skip to content',
+      unmuteHint: 'unmute',
+      xiosDesc: 'Transforms Telegram appearance into an iOS-inspired style.',
+      xassistDesc: 'Smart AI-powered assistant right inside Telegram.',
+      xdevelopDesc: 'My channel featuring all projects and their latest updates.',
+      channelCta: 'Open',
+      mskPrefix: 'MSK · ',
+      mskLabel: 'Moscow time',
+      play: 'Play',
+      pause: 'Pause',
+      retry: 'Retry loading',
+      seekLabel: 'Seek',
+      seekOf: ' of ',
+      volumeLabel: 'Volume',
+      mute: 'Mute',
+      unmute: 'Unmute',
+      loopOn: 'Loop: on',
+      loopOff: 'Loop: off',
+      speedLabel: 'Playback speed',
+      statusBlocked: 'Press ▶ to enable sound',
+      statusError: 'Audio failed to load — press ▶ to retry',
+      statusLoading: 'Buffering…'
+    }
+  };
+
+  function t(key) {
+    var dict = I18N[currentLang] || I18N.ru;
+    return dict[key] || I18N.ru[key] || '';
+  }
+
+  function loadLang() {
+    try {
+      var saved = window.localStorage.getItem(LANG_KEY);
+      if (saved === 'en' || saved === 'ru') return saved;
+    } catch (err) {}
+    return 'ru';
+  }
+
+  function saveLang(lang) {
+    try {
+      window.localStorage.setItem(LANG_KEY, lang);
+    } catch (err) {}
+  }
 
   initMoscowClock();
   initBackgroundParticles();
+  initLangSwitch();
 
-  if (!audio || !player) return;
+  if (!audio || !player) {
+    applyLang();
+    return;
+  }
 
   var AUTOPLAY_MODE = 'gate';
   var SEEK_MAX = 1000;
@@ -113,18 +194,12 @@
     }, 400);
   }
 
-  var STATUS = {
-    blocked: 'Нажмите ▶, чтобы включить звук',
-    error: 'Аудио не загрузилось — нажмите ▶ для повтора',
-    loading: 'Буферизация…'
-  };
-
-  function setStatus(text) {
+  function setStatus(key) {
+    statusKey = key || '';
     if (!statusEl) return;
-    var next = text || '';
-    if (statusEl.textContent === next) return;
-    statusEl.textContent = next;
-    player.classList.toggle('has-error', next === STATUS.error);
+    var next = statusKey ? t(statusKey) : '';
+    if (statusEl.textContent !== next) statusEl.textContent = next;
+    player.classList.toggle('has-error', statusKey === 'statusError');
   }
 
   function ensureAudioGraph() {
@@ -216,14 +291,14 @@
 
   function renderProgress() {
     var d = duration();
-    var t = clamp(progressTime(), 0, d || progressTime());
-    var ratio = d > 0 ? t / d : 0;
+    var cur = clamp(progressTime(), 0, d || progressTime());
+    var ratio = d > 0 ? cur / d : 0;
 
     seekFill.style.width = (ratio * 100).toFixed(3) + '%';
     if (!scrubbing) seek.value = String(Math.round(ratio * SEEK_MAX));
 
-    currentTimeEl.textContent = formatTime(t);
-    seek.setAttribute('aria-valuetext', formatTime(t) + ' из ' + formatTime(d));
+    currentTimeEl.textContent = formatTime(cur);
+    seek.setAttribute('aria-valuetext', formatTime(cur) + t('seekOf') + formatTime(d));
   }
 
   function renderBuffer() {
@@ -255,7 +330,7 @@
     var muted = audio.muted || audio.volume === 0;
     player.classList.toggle('is-muted', muted);
     muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-    muteBtn.setAttribute('aria-label', muted ? 'Включить звук' : 'Выключить звук');
+    muteBtn.setAttribute('aria-label', muted ? t('unmute') : t('mute'));
     muteBtn.classList.toggle('is-quiet', !muted && audio.volume > 0 && audio.volume < 0.5);
   }
 
@@ -263,8 +338,12 @@
     var playing = !audio.paused && !audio.ended;
     player.classList.toggle('is-playing', playing);
     document.body.classList.toggle('is-audio-playing', playing);
-    playBtn.setAttribute('aria-label', playing ? 'Пауза' : 'Воспроизвести');
-    if (playing && statusEl && statusEl.textContent !== STATUS.error) setStatus('');
+    if (statusKey === 'statusError') {
+      playBtn.setAttribute('aria-label', t('retry'));
+    } else {
+      playBtn.setAttribute('aria-label', playing ? t('pause') : t('play'));
+    }
+    if (playing && statusKey !== 'statusError') setStatus('');
     updatePositionState();
   }
 
@@ -287,7 +366,7 @@
     player.classList.toggle('is-looping', audio.loop);
     loopBtn.classList.toggle('is-active', audio.loop);
     loopBtn.setAttribute('aria-pressed', audio.loop ? 'true' : 'false');
-    loopBtn.setAttribute('aria-label', audio.loop ? 'Повтор трека: включён' : 'Повтор трека: выключен');
+    loopBtn.setAttribute('aria-label', audio.loop ? t('loopOn') : t('loopOff'));
   }
 
   function tick() {
@@ -323,7 +402,7 @@
         ensureAudioGraph();
         setStatus('');
       }).catch(function () {
-        if (!audio.error) setStatus(STATUS.blocked);
+        if (!audio.error) setStatus('statusBlocked');
       });
     }
   }
@@ -378,8 +457,8 @@
   audio.addEventListener('error', function () {
     renderBuffering(false);
     stopTicker();
-    setStatus(STATUS.error);
-    playBtn.setAttribute('aria-label', 'Повторить загрузку');
+    setStatus('statusError');
+    playBtn.setAttribute('aria-label', t('retry'));
   });
 
   function beginScrub() {
@@ -752,6 +831,12 @@
     }
   });
 
+  function renderClockText() {
+    if (!mskTimeText) return;
+    mskTimeText.textContent = t('mskPrefix') + lastTimeStr;
+    if (mskTimeEl) mskTimeEl.setAttribute('aria-label', t('mskLabel'));
+  }
+
   function initMoscowClock() {
     if (!mskTimeText) return;
     var formatter = null;
@@ -779,11 +864,70 @@
         var mm = msk.getMinutes();
         timeStr = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
       }
-      mskTimeText.textContent = 'МСК · ' + timeStr;
+      lastTimeStr = timeStr;
+      renderClockText();
     }
 
     updateClock();
     window.setInterval(updateClock, 10000);
+  }
+
+  function applyLang() {
+    document.documentElement.lang = currentLang;
+
+    var nodes = document.querySelectorAll('[data-i18n]');
+    Array.prototype.forEach.call(nodes, function (el) {
+      var key = el.getAttribute('data-i18n');
+      var val = t(key);
+      if (val) el.textContent = val;
+    });
+
+    if (langSwitch) {
+      var btns = langSwitch.querySelectorAll('button[data-lang]');
+      Array.prototype.forEach.call(btns, function (btn) {
+        var active = btn.getAttribute('data-lang') === currentLang;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    renderClockText();
+
+    if (!audio || !player) return;
+    if (seek) seek.setAttribute('aria-label', t('seekLabel'));
+    if (volumeSlider) volumeSlider.setAttribute('aria-label', t('volumeLabel'));
+    if (speedBtn) speedBtn.setAttribute('aria-label', t('speedLabel'));
+    if (speedMenu) speedMenu.setAttribute('aria-label', t('speedLabel'));
+    setStatus(statusKey);
+    renderPlayState();
+    renderVolume();
+    renderLoop();
+    renderProgress();
+  }
+
+  function setLang(lang) {
+    var next = lang === 'en' ? 'en' : 'ru';
+    if (next === currentLang) return;
+    currentLang = next;
+    saveLang(currentLang);
+    applyLang();
+  }
+
+  function initLangSwitch() {
+    if (!langSwitch) return;
+    langSwitch.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('button[data-lang]') : null;
+      if (btn) {
+        var targetLang = btn.getAttribute('data-lang');
+        if (targetLang === currentLang) {
+          setLang(currentLang === 'ru' ? 'en' : 'ru');
+        } else {
+          setLang(targetLang);
+        }
+      } else {
+        setLang(currentLang === 'ru' ? 'en' : 'ru');
+      }
+    });
   }
 
   function initBackgroundParticles() {
@@ -903,10 +1047,8 @@
   seek.max = String(SEEK_MAX);
   volumeSlider.value = String(Math.round(prefs.volume * 100));
 
-  renderVolume();
+  applyLang();
   renderRate();
-  renderLoop();
-  renderPlayState();
   renderBuffering(false);
   setupMediaSession();
   renderDuration();

@@ -40,18 +40,44 @@
   --mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+html,
+body,
 *,
 *::before,
 *::after {
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none;
 }
 
+::selection {
+  background: rgba(167, 139, 250, 0.28);
+  color: var(--violet-100);
+}
+
+body,
+a,
 button,
 input,
-.enter-gate {
+.enter-gate,
+.project-card,
+.now-playing {
   -webkit-user-select: none;
   user-select: none;
+}
+
+a,
+button,
+input,
+[tabindex] {
+  outline: none;
+}
+
+a:focus,
+button:focus,
+input:focus {
+  outline: none;
 }
 
 html {
@@ -97,12 +123,14 @@ a:hover {
   text-decoration: underline;
 }
 
-a:focus-visible,
-button:focus-visible,
-input:focus-visible {
-  outline: 2px solid var(--violet-300);
-  outline-offset: 3px;
-  border-radius: 8px;
+@media (hover: hover) and (pointer: fine) {
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible {
+    outline: 2px solid var(--violet-300);
+    outline-offset: 3px;
+    border-radius: 8px;
+  }
 }
 
 .skip-link {
@@ -1170,9 +1198,7 @@ body.is-audio-playing .eq.is-live span {
 }
 
 .project-card__cta:focus-visible {
-  outline: 2px solid var(--violet-200);
-  outline-offset: 3px;
-  border-radius: 999px;
+  outline: none;
 }
 
 .project-card__handle {
@@ -1348,8 +1374,7 @@ body.gate-open {
 }
 
 .enter-gate__cta:focus-visible {
-  outline: 2px solid var(--violet-200);
-  outline-offset: 10px;
+  outline: none;
 }
 
 @keyframes gate-in {

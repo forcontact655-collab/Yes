@@ -1,17 +1,11 @@
-/* ==========================================================================
-   Somewhat_empty — фиолетовая тема
-   ========================================================================== */
-
 :root {
   color-scheme: dark;
 
-  /* базовые цвета */
   --bg: #07040d;
   --bg-2: #120a22;
   --text: #f1edfa;
   --muted: #a69ec2;
 
-  /* фиолетовая палитра */
   --violet-100: #f5f0ff;
   --violet-200: #e2d7ff;
   --violet-300: #c9b8ff;
@@ -121,10 +115,6 @@ input:focus-visible {
   padding: 38px 0 42px;
 }
 
-/* ==========================================================================
-   Now Playing
-   ========================================================================== */
-
 .now-playing {
   position: relative;
   margin-bottom: 30px;
@@ -220,8 +210,6 @@ input:focus-visible {
   color: var(--violet-200);
 }
 
-/* Эквалайзер */
-
 .eq {
   display: flex;
   align-items: flex-end;
@@ -239,7 +227,6 @@ input:focus-visible {
   transform-origin: bottom;
 }
 
-/* У каждой полоски свой ритм, амплитуда и темп — двигаются независимо, как при реальном сигнале */
 body.is-audio-playing .eq span {
   opacity: 1;
   animation-timing-function: ease-in-out;
@@ -280,11 +267,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   78%      { height: 50%; }
 }
 
-/* ==========================================================================
-   Плеер
-   ========================================================================== */
-
-/* сам элемент <audio> не участвует в раскладке */
 #audio {
   display: none;
 }
@@ -325,8 +307,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   from { background-position: 130% 0; }
   to   { background-position: -60% 0; }
 }
-
-/* --- Кнопка Play --- */
 
 .player__play {
   position: relative;
@@ -385,8 +365,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   display: block;
 }
 
-/* Пульсирующий ореол, когда играет */
-
 .player.is-playing .player__play::before {
   content: "";
   position: absolute;
@@ -403,8 +381,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   100% { transform: scale(1.22); opacity: 0; }
 }
 
-/* Кольцо буферизации */
-
 .player.is-buffering .player__play::after {
   content: "";
   position: absolute;
@@ -419,8 +395,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
-/* --- Центральная часть --- */
 
 .player__center {
   display: flex;
@@ -451,8 +425,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   color: var(--muted);
   opacity: 1;
 }
-
-/* --- Полоса перемотки --- */
 
 .player__seek-wrap,
 .player__volume-wrap {
@@ -624,8 +596,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   box-shadow: 0 0 0 6px rgba(196, 176, 253, 0.35), 0 2px 10px rgba(10, 4, 22, 0.7);
 }
 
-/* --- Нижняя панель управления --- */
-
 .player__controls-row {
   display: flex;
   align-items: center;
@@ -688,7 +658,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   box-shadow: 0 3px 12px rgba(124, 58, 237, 0.45);
 }
 
-/* иконки громкости */
 .player .icon--vol-low,
 .player .icon--vol-mute {
   display: none;
@@ -715,8 +684,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   color: var(--violet-200);
   background: rgba(232, 121, 249, 0.16);
 }
-
-/* --- Скорость --- */
 
 .player__speed {
   position: relative;
@@ -809,8 +776,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   font-weight: 600;
 }
 
-/* --- Открытое меню скорости / включённый повтор --- */
-
 .player.speed-open {
   z-index: 6;
 }
@@ -821,8 +786,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
     inset 0 1px 0 rgba(241, 235, 255, 0.12),
     inset 0 0 0 1px rgba(232, 121, 249, 0.22);
 }
-
-/* --- Тихий старт (режим muted): трек идёт, звука пока нет --- */
 
 .player.is-silent {
   border-color: rgba(232, 121, 249, 0.36);
@@ -837,16 +800,10 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   filter: saturate(0.75);
 }
 
-/* --- Состояние ошибки --- */
-
 .player.has-error {
   border-color: rgba(232, 121, 249, 0.5);
   box-shadow: 0 10px 30px rgba(76, 29, 149, 0.3), inset 0 0 0 1px rgba(232, 121, 249, 0.16);
 }
-
-/* ==========================================================================
-   Профиль
-   ========================================================================== */
 
 .profile-row {
   display: flex;
@@ -892,10 +849,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   gap: 18px;
   font-size: 0.76rem;
 }
-
-/* ==========================================================================
-   Проекты
-   ========================================================================== */
 
 .project-section {
   padding-bottom: 42px;
@@ -1072,7 +1025,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   text-transform: uppercase;
 }
 
-/* Карточка-ссылка целиком (канал X-Develop) */
 .project-card--link {
   position: relative;
   cursor: pointer;
@@ -1182,11 +1134,6 @@ body.is-audio-playing .eq span:nth-child(4) { animation-name: eq-4; animation-du
   text-align: center;
 }
 
-/* ==========================================================================
-   Экран входа «click to enter»
-   Показывается, только если браузер не дал включить звук сам.
-   ========================================================================== */
-
 body.gate-open {
   overflow: hidden;
 }
@@ -1260,7 +1207,6 @@ body.gate-open {
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
-/* блик, пробегающий по кнопке */
 .enter-gate__cta::before {
   content: "";
   position: absolute;
@@ -1280,7 +1226,6 @@ body.gate-open {
   animation: gate-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-/* мягкое свечение-ореол за кнопкой */
 .enter-gate__halo {
   position: absolute;
   inset: -14px;
@@ -1293,7 +1238,7 @@ body.gate-open {
 .enter-gate__cta-text {
   position: relative;
   display: block;
-  padding-left: 0.3em;   /* компенсация letter-spacing справа */
+  padding-left: 0.3em;
   background: linear-gradient(90deg, var(--violet-100) 0%, var(--violet-300) 45%, var(--orchid) 100%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -1334,8 +1279,6 @@ body.gate-open {
   100%    { left: 130%; }
 }
 
-/* ---------- Кнопка «включить звук» (режим muted-автозапуска) ---------- */
-
 .sound-hint {
   display: inline-flex;
   align-items: center;
@@ -1372,10 +1315,6 @@ body.gate-open {
   0%, 100% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.45), 0 4px 16px rgba(124, 58, 237, 0.4); }
   50%      { box-shadow: 0 0 0 7px rgba(167, 139, 250, 0), 0 4px 16px rgba(124, 58, 237, 0.4); }
 }
-
-/* ==========================================================================
-   Адаптив
-   ========================================================================== */
 
 @media (max-width: 600px) {
   .page-shell {
@@ -1541,7 +1480,6 @@ body.gate-open {
   }
 }
 
-/* Очень узкие экраны: убираем слайдер громкости, оставляем кнопку mute */
 @media (max-width: 340px) {
   .player__volume-wrap {
     display: none;

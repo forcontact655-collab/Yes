@@ -1,19 +1,3 @@
-/*
- * Player for somewhat_empty.
- *
- * Что здесь починено относительно старой версии:
- *  - длительность больше не залипает на «0:00», если метаданные успели
- *    загрузиться до подключения скрипта (проверяем readyState/duration сразу);
- *  - перемотка не «залипает» в режиме драга: состояние сбрасывается по
- *    pointerup/pointercancel на окне, а не только на самом слайдере;
- *  - пробел не срабатывает дважды, когда фокус на кнопке (click + keydown);
- *  - музыка не стартует от любого случайного клика по странице;
- *  - меню скорости не содержит фокусируемых кнопок в aria-hidden,
- *    закрыто через hidden и управляется с клавиатуры;
- *  - есть обработка ошибки загрузки, буферизации и бесконечной длительности;
- *  - громкость/скорость/повтор сохраняются между визитами;
- *  - добавлен Media Session (управление с экрана блокировки Android).
- */
 (function () {
   'use strict';
 
@@ -41,17 +25,8 @@
 
   if (!audio || !player) return;
 
-  /*
-   * Режим автозапуска:
-   *   'gate'  — если звук без жеста запрещён, показываем экран «click to enter»
-   *             (как на zet.is-a.dev): один клик — и трек играет со звуком;
-   *   'muted' — трек стартует сразу без звука (это разрешают все браузеры),
-   *             а звук включается по первому клику/тапу/клавише;
-   *   'off'   — ничего не делаем, ждём нажатия кнопки play.
-   */
   var AUTOPLAY_MODE = 'gate';
-
-  var SEEK_MAX = 1000;          // слайдер живёт в промилле, а не в секундах
+  var SEEK_MAX = 1000;
   var STORE_KEY = 'somewhat-empty.player.v1';
   var TRACK = {
     title: 'Красавица (sped up)',
@@ -60,16 +35,14 @@
   };
 
   var prefs = loadPrefs();
-  var pendingTime = null;       // время, которое пользователь надрагивает
+  var pendingTime = null;
   var scrubbing = false;
   var rafId = 0;
-  var autoplayState = 'idle';   // idle | trying | done | muted | gate
+  var autoplayState = 'idle';
   var gateOpen = false;
   var entered = false;
-  var autoMuted = false;        // играем тихо в ожидании первого жеста
+  var autoMuted = false;
   var unlockBound = false;
-
-  // ---------- Утилиты ----------
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
@@ -107,7 +80,6 @@
 
   var saveTimer = 0;
   function savePrefs() {
-    // пишем не чаще раза в 400 мс и в самом конце
     if (saveTimer) return;
     saveTimer = window.setTimeout(function () {
       saveTimer = 0;
@@ -118,7 +90,7 @@
           rate: audio.playbackRate,
           loop: audio.loop
         }));
-      } catch (err) { /* приватный режим — не страшно */ }
+      } catch (err) {}
     }, 400);
   }
 
@@ -135,8 +107,6 @@
     statusEl.textContent = next;
     player.classList.toggle('has-error', next === STATUS.error);
   }
-
-  // ---------- Отрисовка ----------
 
   function progressTime() {
     return pendingTime !== null ? pendingTime : (audio.currentTime || 0);
@@ -218,7 +188,6 @@
     loopBtn.setAttribute('aria-label', audio.loop ? 'Повтор трека: включён' : 'Повтор трека: выключен');
   }
 
-  // Плавная перемотка по requestAnimationFrame вместо редких timeupdate
   function tick() {
     renderProgress();
     rafId = window.requestAnimationFrame(tick);
@@ -236,11 +205,8 @@
     renderProgress();
   }
 
-  // ---------- Воспроизведение ----------
-
   function play() {
     if (audio.error) {
-      // Пробуем загрузить источник заново.
       setStatus('');
       audio.load();
     }
@@ -264,7 +230,7 @@
     if (!d) return;
     try {
       audio.currentTime = clamp(time, 0, d);
-    } catch (err) { /* источник ещё не готов */ }
+    } catch (err) {}
     renderProgress();
   }
 
@@ -288,7 +254,7 @@
   audio.addEventListener('durationchange', renderDuration);
   audio.addEventListener('progress', renderBuffer);
   audio.addEventListener('timeupdate', function () {
-    if (!rafId) renderProgress();   // страховка, если rAF недоступен
+    if (!rafId) renderProgress();
   });
   audio.addEventListener('volumechange', function () { renderVolume(); savePrefs(); });
   audio.addEventListener('ratechange', function () { renderRate(); savePrefs(); updatePositionState(); });
@@ -299,8 +265,6 @@
     setStatus(STATUS.error);
     playBtn.setAttribute('aria-label', 'Повторить загрузку');
   });
-
-  // ---------- Перемотка ----------
 
   function beginScrub() {
     scrubbing = true;
@@ -326,7 +290,6 @@
   seek.addEventListener('input', updateScrub);
   seek.addEventListener('change', commitScrub);
 
-  // Сбрасываем драг, даже если палец/курсор ушёл за пределы слайдера.
   window.addEventListener('pointerup', function () {
     if (scrubbing) commitScrub();
   });
@@ -336,8 +299,6 @@
   window.addEventListener('blur', function () {
     if (scrubbing) commitScrub();
   });
-
-  // ---------- Громкость ----------
 
   function setVolume(v) {
     audio.volume = clamp(v, 0, 1);
@@ -367,8 +328,6 @@
     renderLoop();
     savePrefs();
   });
-
-  // ---------- Скорость ----------
 
   function setSpeed(rate) {
     audio.playbackRate = clamp(parseFloat(rate) || 1, 0.5, 4);
@@ -445,21 +404,18 @@
     if (e.key === 'Escape') closeMenu(false);
   });
 
-  // ---------- Горячие клавиши ----------
-
   function isTypingTarget(el) {
     if (!el || !el.tagName) return false;
     var tag = el.tagName.toUpperCase();
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
     if (el.isContentEditable) return true;
-    // Пробел/Enter на кнопке уже сам нажимает её — не дублируем.
     if (tag === 'BUTTON' || tag === 'A') return true;
     if (typeof el.closest === 'function' && el.closest('[role="menuitemradio"]')) return true;
     return false;
   }
 
   document.addEventListener('keydown', function (e) {
-    if (gateOpen) return;                  // заставка перехватывает клавиши
+    if (gateOpen) return;
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     if (isTypingTarget(e.target)) return;
 
@@ -495,8 +451,6 @@
     }
   });
 
-  // ---------- Media Session (экран блокировки / наушники) ----------
-
   function updatePositionState() {
     if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
     var d = duration();
@@ -507,7 +461,7 @@
         playbackRate: audio.playbackRate || 1,
         position: clamp(audio.currentTime || 0, 0, d)
       });
-    } catch (err) { /* не все браузеры принимают эти значения */ }
+    } catch (err) {}
   }
 
   function setupMediaSession() {
@@ -528,23 +482,10 @@
       };
 
       Object.keys(handlers).forEach(function (action) {
-        try { navigator.mediaSession.setActionHandler(action, handlers[action]); } catch (err) { /* не поддерживается */ }
+        try { navigator.mediaSession.setActionHandler(action, handlers[action]); } catch (err) {}
       });
-    } catch (err) { /* MediaMetadata недоступен */ }
+    } catch (err) {}
   }
-
-  // ---------- Автозапуск ----------
-  /*
-   * Браузер запрещает включать звук без жеста пользователя, и обойти это
-   * нельзя — можно только получить жест как можно раньше. Порядок такой:
-   *
-   *  1. пробуем со звуком: сработает, если браузер уже разрешает
-   *     (высокий Media Engagement Index для сайта, разрешение пользователя,
-   *     активация на странице уже есть);
-   *  2. не вышло → экран входа «click to enter» (режим 'gate') — клик по нему
-   *     и есть тот самый жест, после которого звук разрешён;
-   *     либо тихий старт (режим 'muted') + включение звука по первому жесту.
-   */
 
   function hasActivation() {
     try {
@@ -572,7 +513,6 @@
     autoplayState = 'gate';
     gate.hidden = false;
     document.body.classList.add('gate-open');
-    // кадр на отрисовку, чтобы переход появления сработал
     window.requestAnimationFrame(function () {
       gate.classList.add('is-visible');
       if (enterBtn) enterBtn.focus();
@@ -611,7 +551,6 @@
     player.classList.remove('is-silent');
   }
 
-  // Режим 'muted': трек уже идёт, звук включаем на первом же жесте.
   function armSoundUnlock() {
     showSoundHint();
     if (unlockBound) return;
@@ -630,7 +569,7 @@
     };
 
     ['pointerdown', 'keydown', 'touchend'].forEach(function (evt) {
-      document.addEventListener(evt, unlock, true);   // capture: срабатываем раньше всех
+      document.addEventListener(evt, unlock, true);
     });
   }
 
@@ -650,7 +589,7 @@
     }).catch(function () {
       if (audio.error) {
         autoplayState = 'done';
-        return;   // источник не грузится — заставка тут не поможет
+        return;
       }
 
       if (AUTOPLAY_MODE === 'muted') {
@@ -666,7 +605,7 @@
             autoMuted = false;
             audio.muted = prefs.muted;
             renderVolume();
-            openGate();   // даже тихий старт запрещён — остаётся экран входа
+            openGate();
           });
         } else {
           autoplayState = 'muted';
@@ -685,19 +624,15 @@
   document.addEventListener('keydown', function (e) {
     if (!gateOpen) return;
     if (e.key === 'Escape') {
-      // Просто убираем заставку, сайт можно смотреть и без музыки.
       e.preventDefault();
       enter(true);
       return;
     }
-    // Любой Enter/пробел на заставке = войти со звуком.
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') {
       e.preventDefault();
       enter(false);
     }
   });
-
-  // ---------- Инициализация ----------
 
   audio.volume = prefs.volume;
   audio.muted = prefs.muted;
@@ -717,12 +652,8 @@
   renderPlayState();
   renderBuffering(false);
   setupMediaSession();
-
-  // Метаданные могли загрузиться до подключения скрипта — не ждём события.
   renderDuration();
 
-  // Активация уже есть (например, пользователь вернулся на страницу) —
-  // заставка не нужна, звук разрешат и так.
   attemptAutoplay();
   audio.addEventListener('canplay', function () {
     if (autoplayState === 'idle' || autoplayState === 'trying') attemptAutoplay();
@@ -741,7 +672,7 @@
           rate: audio.playbackRate,
           loop: audio.loop
         }));
-      } catch (err) { /* ignore */ }
+      } catch (err) {}
     }
   });
 })();

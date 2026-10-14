@@ -171,8 +171,40 @@ a:hover {
 
 .top-bar {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   margin-bottom: 12px;
+}
+
+.owner-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid rgba(196, 176, 253, 0.28);
+  border-radius: 999px;
+  background: rgba(17, 10, 32, 0.72);
+  box-shadow: 0 6px 18px rgba(8, 4, 18, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--violet-100);
+  font-size: 0.64rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  line-height: 1.45;
+}
+
+.owner-views[hidden] {
+  display: none !important;
+}
+
+.owner-views svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  color: var(--orchid);
 }
 
 .lang-switch {

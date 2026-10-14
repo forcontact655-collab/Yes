@@ -28,6 +28,15 @@
   var mskTimeText = $('msk-time-text');
   var particlesCanvas = $('bg-particles');
   var langSwitch = $('lang-switch');
+  var ownerViewsEl = $('owner-views');
+  var ownerViewsCountEl = $('owner-views-count');
+
+  var OWNER_STORE_KEY = 'somewhat-empty.owner.v1';
+  var VISITED_STORE_KEY = 'somewhat-empty.visited.v1';
+  var OWNER_HASH = '2535c2ecc91cddd231a9f367dbccb3b341344c8626bc300259d64c3918750997';
+  var COUNTER_BASE = 'https:' + '/' + '/abacus.jasoncameron.dev/';
+  var COUNTER_GET_URL = COUNTER_BASE + 'get/empty.is-a.dev/unique-visitors';
+  var COUNTER_HIT_URL = COUNTER_BASE + 'hit/empty.is-a.dev/unique-visitors';
 
   var currentLang = 'ru';
   var statusKey = '';
@@ -72,7 +81,8 @@
       speedLabel: 'Скорость воспроизведения',
       statusBlocked: 'Нажмите ▶, чтобы включить звук',
       statusError: 'Аудио не загрузилось — нажмите ▶ для повтора',
-      statusLoading: 'Буферизация…'
+      statusLoading: 'Буферизация…',
+      viewsTitle: 'Уникальные посетители'
     },
     en: {
       skip: 'Skip to content',
@@ -96,7 +106,8 @@
       speedLabel: 'Playback speed',
       statusBlocked: 'Press ▶ to enable sound',
       statusError: 'Audio failed to load — press ▶ to retry',
-      statusLoading: 'Buffering…'
+      statusLoading: 'Buffering…',
+      viewsTitle: 'Unique visitors'
     }
   };
 
@@ -108,6 +119,7 @@
   initMoscowClock();
   initBackgroundParticles();
   initLangSwitch();
+  initVisitorCounter();
 
   if (!audio || !player) {
     applyLang();
@@ -901,6 +913,11 @@
       });
     }
 
+    if (ownerViewsEl) {
+      ownerViewsEl.setAttribute('title', t('viewsTitle'));
+      ownerViewsEl.setAttribute('aria-label', t('viewsTitle'));
+    }
+
     renderClockText();
 
     if (!audio || !player) return;
@@ -937,6 +954,144 @@
         setLang(currentLang === 'ru' ? 'en' : 'ru');
       }
     });
+  }
+
+  function sha256(ascii) {
+    function rightRotate(value, amount) {
+      return (value >>> amount) | (value << (32 - amount));
+    }
+    var mathPow = Math.pow;
+    var maxWord = mathPow(2, 32);
+    var i;
+    var j;
+    var result = '';
+    var words = [];
+    var asciiBitLength = ascii.length * 8;
+    var hash = [];
+    var k = [];
+    var primeCounter = 0;
+    var isComposite = {};
+    for (var candidate = 2; primeCounter < 64; candidate++) {
+      if (!isComposite[candidate]) {
+        for (i = 0; i < 313; i += candidate) {
+          isComposite[i] = candidate;
+        }
+        hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+        k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+      }
+    }
+    ascii += '\x80';
+    while ((ascii.length % 64) - 56) ascii += '\x00';
+    for (i = 0; i < ascii.length; i++) {
+      j = ascii.charCodeAt(i);
+      if (j >> 8) return '';
+      words[i >> 2] |= j << ((3 - (i % 4)) * 8);
+    }
+    words[words.length] = (asciiBitLength / maxWord) | 0;
+    words[words.length] = asciiBitLength;
+    for (j = 0; j < words.length;) {
+      var w = words.slice(j, (j += 16));
+      var oldHash = hash;
+      hash = hash.slice(0, 8);
+      for (i = 0; i < 64; i++) {
+        var w15 = w[i - 15];
+        var w2 = w[i - 2];
+        var a = hash[0];
+        var e = hash[4];
+        var temp1 =
+          hash[7] +
+          (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) +
+          ((e & hash[5]) ^ (~e & hash[6])) +
+          k[i] +
+          (w[i] =
+            i < 16
+              ? w[i]
+              : (w[i - 16] +
+                  (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) +
+                  w[i - 7] +
+                  (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) |
+                0);
+        var temp2 =
+          (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) +
+          ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+        hash = [(temp1 + temp2) | 0].concat(hash);
+        hash[4] = (hash[4] + temp1) | 0;
+      }
+      for (i = 0; i < 8; i++) {
+        hash[i] = (hash[i] + oldHash[i]) | 0;
+      }
+    }
+    for (i = 0; i < 8; i++) {
+      for (j = 3; j + 1; j--) {
+        var b = (hash[i] >> (j * 8)) & 255;
+        result += (b < 16 ? 0 : '') + b.toString(16);
+      }
+    }
+    return result;
+  }
+
+  function extractOwnerToken() {
+    var sources = [window.location.hash || '', window.location.search || ''];
+    for (var i = 0; i < sources.length; i++) {
+      var raw = sources[i].replace(/^[#?]/, '');
+      if (!raw) continue;
+      var parts = raw.split('&');
+      for (var j = 0; j < parts.length; j++) {
+        var kv = parts[j].split('=');
+        var k = decodeURIComponent(kv[0] || '');
+        if (k === 'key' || k === 'owner') {
+          return decodeURIComponent(kv.slice(1).join('=') || '').trim();
+        }
+      }
+    }
+    return '';
+  }
+
+  function initVisitorCounter() {
+    var token = extractOwnerToken();
+    if (token && sha256(token) === OWNER_HASH) {
+      try {
+        window.localStorage.setItem(OWNER_STORE_KEY, OWNER_HASH);
+        window.localStorage.setItem(VISITED_STORE_KEY, '1');
+      } catch (err) {}
+      if (window.history && typeof window.history.replaceState === 'function') {
+        try {
+          window.history.replaceState(null, '', window.location.pathname);
+        } catch (err) {}
+      }
+    }
+
+    var isOwner = false;
+    try {
+      isOwner = window.localStorage.getItem(OWNER_STORE_KEY) === OWNER_HASH;
+    } catch (err) {}
+
+    if (isOwner) {
+      if (ownerViewsEl) ownerViewsEl.hidden = false;
+      if (typeof window.fetch === 'function') {
+        window.fetch(COUNTER_GET_URL, { cache: 'no-store' })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (data) {
+            if (data && typeof data.value === 'number' && ownerViewsCountEl) {
+              ownerViewsCountEl.textContent = String(data.value);
+            }
+          })
+          .catch(function () {});
+      }
+      return;
+    }
+
+    var alreadyVisited = false;
+    try {
+      alreadyVisited = window.localStorage.getItem(VISITED_STORE_KEY) === '1';
+    } catch (err) {}
+
+    if (!alreadyVisited && typeof window.fetch === 'function') {
+      try {
+        window.localStorage.setItem(VISITED_STORE_KEY, '1');
+      } catch (err) {}
+      window.fetch(COUNTER_HIT_URL, { cache: 'no-store' }).catch(function () {});
+    }
   }
 
   function initBackgroundParticles() {

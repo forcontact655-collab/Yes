@@ -40,8 +40,18 @@
   --mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+.enter-gate {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 html {
@@ -1110,11 +1120,6 @@ body.is-audio-playing .eq.is-live span {
   text-transform: uppercase;
 }
 
-.project-card--link {
-  position: relative;
-  cursor: pointer;
-}
-
 .project-card--channel {
   border-color: rgba(196, 176, 253, 0.34);
   background:
@@ -1147,7 +1152,27 @@ body.is-audio-playing .eq.is-live span {
   border-radius: 999px;
   background: rgba(15, 8, 30, 0.55);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition: border-color 0.22s ease, background 0.22s ease, transform 0.22s ease;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.22s ease, background 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.project-card__cta:hover {
+  text-decoration: none;
+  transform: translateY(-1px);
+  border-color: rgba(226, 215, 255, 0.55);
+  background: rgba(26, 14, 52, 0.78);
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.project-card__cta:active {
+  transform: scale(0.97);
+}
+
+.project-card__cta:focus-visible {
+  outline: 2px solid var(--violet-200);
+  outline-offset: 3px;
+  border-radius: 999px;
 }
 
 .project-card__handle {
@@ -1176,35 +1201,8 @@ body.is-audio-playing .eq.is-live span {
   transition: transform 0.2s ease;
 }
 
-.project-card--channel:hover .project-card__cta {
-  border-color: rgba(226, 215, 255, 0.5);
-  background: rgba(24, 13, 48, 0.72);
-}
-
-.project-card--channel:hover .project-card__action svg {
+.project-card__cta:hover .project-card__action svg {
   transform: translate(1px, -1px);
-}
-
-.project-card--link .project-card__title::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 18px;
-}
-
-.project-card--link:focus-within {
-  border-color: var(--card-border-hover);
-}
-
-.project-card__title {
-  color: inherit;
-  text-decoration: none;
-  outline: none;
-}
-
-.project-card--link .project-card__title:focus-visible::after {
-  outline: 2px solid var(--violet-200);
-  outline-offset: -2px;
 }
 
 .site-footer {

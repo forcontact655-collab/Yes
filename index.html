@@ -20,14 +20,21 @@
   <meta name="twitter:image" content="https://forcontact655-collab.github.io/Yes/og-preview.png">
   <title>Somewhat_empty — projects</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23120b22'/%3E%3Cpath d='M12 22.5a2.8 2.8 0 1 1-2.8-2.8c.4 0 .7 0 1 .2V9.2l9-2v9.6a2.8 2.8 0 1 1-2.8-2.8c.4 0 .7 0 1 .2V11l-5.4 1.2z' fill='%23a78bfa'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <canvas class="bg-particles" id="bg-particles" aria-hidden="true"></canvas>
-  <a class="skip-link" href="#main-content">Перейти к содержимому</a>
+  <a class="skip-link" href="#main-content" data-i18n="skip">Перейти к содержимому</a>
 
   <header class="site-header">
     <div class="page-shell">
+      <div class="top-bar">
+        <div class="lang-switch" id="lang-switch" role="group" aria-label="Language">
+          <button class="lang-switch__btn is-active" type="button" data-lang="ru" aria-pressed="true">Ru</button>
+          <button class="lang-switch__btn" type="button" data-lang="en" aria-pressed="false">Eng</button>
+        </div>
+      </div>
+
       <section class="now-playing" aria-labelledby="now-playing-title">
         <div class="now-playing__top">
           <div class="now-playing__meta">
@@ -42,7 +49,7 @@
             <p class="now-playing__status" id="player-status" role="status" aria-live="polite"></p>
             <button class="sound-hint" id="sound-hint" type="button" hidden>
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 00-2.5-4.03v8.05A4.5 4.5 0 0016.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77S18.01 4.14 14 3.23z" fill="currentColor"/></svg>
-              <span>включить звук</span>
+              <span data-i18n="unmuteHint">включить звук</span>
             </button>
           </div>
         </div>
@@ -157,7 +164,7 @@
             <span class="project-card__badge">Plugin</span>
           </div>
           <h3>X-iOS</h3>
-          <p class="project-description">Меняет внешний вид телеграм под iOS стиль.</p>
+          <p class="project-description" data-i18n="xiosDesc">Меняет внешний вид телеграм под iOS стиль.</p>
           <ul class="tag-list" aria-label="Теги проекта X-iOS">
             <li>telegram</li>
             <li>visual</li>
@@ -173,7 +180,7 @@
             <span class="project-card__badge">Plugin</span>
           </div>
           <h3>X-Assist</h3>
-          <p class="project-description">Умный помощник на базе ИИ прямо в телеграм.</p>
+          <p class="project-description" data-i18n="xassistDesc">Умный помощник на базе ИИ прямо в телеграм.</p>
           <ul class="tag-list" aria-label="Теги проекта X-Assist">
             <li>telegram</li>
             <li>ai</li>
@@ -189,11 +196,11 @@
             <span class="project-card__badge project-card__badge--channel">Telegram Channel</span>
           </div>
           <h3>X-Develop</h3>
-          <p class="project-description">Мой канал со всеми проектами и последними обновлениями для них.</p>
+          <p class="project-description" data-i18n="xdevelopDesc">Мой канал со всеми проектами и последними обновлениями для них.</p>
           <a class="project-card__cta" href="https://t.me/xdevelopments" target="_blank" rel="noopener noreferrer">
             <span class="project-card__handle">@xdevelopments</span>
             <span class="project-card__action">
-              <span>Перейти</span>
+              <span data-i18n="channelCta">Перейти</span>
               <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 11.5 11.5 4.5M11.5 4.5H6M11.5 4.5V10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
           </a>
@@ -218,6 +225,6 @@
     </div>
   </div>
 
-  <script src="player.js?v=5"></script>
+  <script src="player.js?v=7"></script>
 </body>
 </html>

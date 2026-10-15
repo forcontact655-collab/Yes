@@ -147,6 +147,8 @@
   var entered = false;
   var autoMuted = false;
   var unlockBound = false;
+  var targetVolume = prefs.volume;
+  var fadeTimer = 0;
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
@@ -189,7 +191,7 @@
       saveTimer = 0;
       try {
         window.localStorage.setItem(STORE_KEY, JSON.stringify({
-          volume: audio.volume,
+          volume: targetVolume,
           muted: audio.muted,
           rate: audio.playbackRate,
           loop: audio.loop
@@ -241,18 +243,19 @@
   }
 
   function renderVolume() {
-    var v = audio.muted ? 0 : audio.volume;
+    var baseVol = fadeTimer ? targetVolume : audio.volume;
+    var v = audio.muted ? 0 : baseVol;
     volumeFill.style.width = (v * 100).toFixed(1) + '%';
     if (document.activeElement !== volumeSlider) {
-      volumeSlider.value = String(Math.round(audio.volume * 100));
+      volumeSlider.value = String(Math.round(baseVol * 100));
     }
     volumeSlider.setAttribute('aria-valuetext', Math.round(v * 100) + '%');
 
-    var muted = audio.muted || audio.volume === 0;
+    var muted = audio.muted || baseVol === 0;
     player.classList.toggle('is-muted', muted);
     muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
     muteBtn.setAttribute('aria-label', muted ? t('unmute') : t('mute'));
-    muteBtn.classList.toggle('is-quiet', !muted && audio.volume > 0 && audio.volume < 0.5);
+    muteBtn.classList.toggle('is-quiet', !muted && baseVol > 0 && baseVol < 0.5);
   }
 
   function renderPlayState() {
@@ -307,16 +310,44 @@
     renderProgress();
   }
 
+  function stopFade() {
+    if (fadeTimer) {
+      window.clearInterval(fadeTimer);
+      fadeTimer = 0;
+    }
+  }
+
+  function startSoftFadeIn() {
+    stopFade();
+    if (audio.muted || targetVolume <= 0.05) return;
+    var step = 0;
+    var steps = 8;
+    try { audio.volume = 0.02; } catch (err) { return; }
+    fadeTimer = window.setInterval(function () {
+      step++;
+      if (step >= steps || audio.paused) {
+        stopFade();
+        try { audio.volume = targetVolume; } catch (err) {}
+        return;
+      }
+      var ratio = step / steps;
+      try { audio.volume = clamp(targetVolume * ratio * ratio, 0.02, targetVolume); } catch (err) {}
+    }, 28);
+  }
+
   function play() {
     if (audio.error) {
       setStatus('');
       audio.load();
     }
+    startSoftFadeIn();
     var promise = audio.play();
     if (promise && typeof promise.then === 'function') {
       promise.then(function () {
         setStatus('');
       }).catch(function () {
+        stopFade();
+        try { audio.volume = targetVolume; } catch (err) {}
         if (!audio.error) setStatus('statusBlocked');
       });
     }
@@ -409,15 +440,21 @@
   });
 
   function setVolume(v) {
-    audio.volume = clamp(v, 0, 1);
+    stopFade();
+    targetVolume = clamp(v, 0, 1);
+    audio.volume = targetVolume;
     if (audio.volume > 0 && audio.muted) audio.muted = false;
     renderVolume();
     savePrefs();
   }
 
   function toggleMute() {
+    stopFade();
     audio.muted = !audio.muted;
-    if (!audio.muted && audio.volume === 0) audio.volume = 0.8;
+    if (!audio.muted && targetVolume === 0) {
+      targetVolume = 0.8;
+      audio.volume = 0.8;
+    }
     renderVolume();
     savePrefs();
   }
@@ -1172,13 +1209,15 @@
   if (hasActivation() && autoplayState === 'gate') enter(false);
 
   window.addEventListener('pagehide', function () {
+    stopFade();
     stopTicker();
+    try { audio.volume = 0; audio.pause(); } catch (err) {}
     if (saveTimer) {
       window.clearTimeout(saveTimer);
       saveTimer = 0;
       try {
         window.localStorage.setItem(STORE_KEY, JSON.stringify({
-          volume: audio.volume,
+          volume: targetVolume,
           muted: audio.muted,
           rate: audio.playbackRate,
           loop: audio.loop

@@ -189,22 +189,51 @@ a:hover {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: var(--violet-100);
-  font-size: 0.64rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   line-height: 1.45;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.16s ease, box-shadow 0.18s ease;
+}
+
+.owner-views:hover {
+  border-color: rgba(226, 215, 255, 0.46);
+  background: rgba(25, 14, 48, 0.82);
+}
+
+.owner-views:active {
+  transform: scale(0.97);
+}
+
+.owner-views:focus-visible {
+  outline: none;
 }
 
 .owner-views[hidden] {
   display: none !important;
 }
 
-.owner-views svg {
+.owner-views__icon {
   width: 13px;
   height: 13px;
   flex: 0 0 auto;
   color: var(--orchid);
+}
+
+.owner-views__icon--age {
+  display: none;
+}
+
+.owner-views.is-age-mode .owner-views__icon--eye {
+  display: none;
+}
+
+.owner-views.is-age-mode .owner-views__icon--age {
+  display: block;
 }
 
 .lang-switch {

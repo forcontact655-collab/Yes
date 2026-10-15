@@ -37,6 +37,10 @@
   var COUNTER_BASE = 'https:' + '/' + '/abacus.jasoncameron.dev/';
   var COUNTER_GET_URL = COUNTER_BASE + 'get/empty.is-a.dev/unique-visitors';
   var COUNTER_HIT_URL = COUNTER_BASE + 'hit/empty.is-a.dev/unique-visitors';
+  var SITE_CREATED_MS = 1791982055000;
+  var SITE_CREATED_DATE = '14.10.2026';
+  var ownerViewsValue = 0;
+  var ownerAgeMode = false;
 
   var currentLang = 'ru';
   var statusKey = '';
@@ -82,7 +86,8 @@
       statusBlocked: 'Нажмите ▶, чтобы включить звук',
       statusError: 'Аудио не загрузилось — нажмите ▶ для повтора',
       statusLoading: 'Буферизация…',
-      viewsTitle: 'Уникальные посетители'
+      viewsTitle: 'Уникальные посетители',
+      ageTitle: 'Дата создания сайта'
     },
     en: {
       skip: 'Skip to content',
@@ -107,7 +112,8 @@
       statusBlocked: 'Press ▶ to enable sound',
       statusError: 'Audio failed to load — press ▶ to retry',
       statusLoading: 'Buffering…',
-      viewsTitle: 'Unique visitors'
+      viewsTitle: 'Unique visitors',
+      ageTitle: 'Site creation date'
     }
   };
 
@@ -925,11 +931,7 @@
       });
     }
 
-    if (ownerViewsEl) {
-      ownerViewsEl.setAttribute('title', t('viewsTitle'));
-      ownerViewsEl.setAttribute('aria-label', t('viewsTitle'));
-    }
-
+    renderOwnerBadge();
     renderClockText();
 
     if (!audio || !player) return;
@@ -1059,6 +1061,26 @@
     return '';
   }
 
+  function formatSiteAge() {
+    var diffMin = Math.max(0, Math.floor((Date.now() - SITE_CREATED_MS) / 60000));
+    var days = Math.floor(diffMin / 1440);
+    var hours = Math.floor((diffMin % 1440) / 60);
+    var mins = diffMin % 60;
+    if (currentLang === 'en') {
+      return SITE_CREATED_DATE + ' · ' + days + 'd ' + hours + 'h ' + mins + 'm ago';
+    }
+    return SITE_CREATED_DATE + ' · ' + days + 'д ' + hours + 'ч ' + mins + 'м назад';
+  }
+
+  function renderOwnerBadge() {
+    if (!ownerViewsEl || !ownerViewsCountEl) return;
+    ownerViewsEl.classList.toggle('is-age-mode', ownerAgeMode);
+    var label = ownerAgeMode ? t('ageTitle') : t('viewsTitle');
+    ownerViewsEl.setAttribute('title', label);
+    ownerViewsEl.setAttribute('aria-label', label);
+    ownerViewsCountEl.textContent = ownerAgeMode ? formatSiteAge() : String(ownerViewsValue);
+  }
+
   function initVisitorCounter() {
     var token = extractOwnerToken();
     if (token && sha256(token) === OWNER_HASH) {
@@ -1079,13 +1101,24 @@
     } catch (err) {}
 
     if (isOwner) {
-      if (ownerViewsEl) ownerViewsEl.hidden = false;
+      if (ownerViewsEl) {
+        ownerViewsEl.hidden = false;
+        ownerViewsEl.addEventListener('click', function () {
+          ownerAgeMode = !ownerAgeMode;
+          renderOwnerBadge();
+        });
+      }
+      renderOwnerBadge();
+      window.setInterval(function () {
+        if (ownerAgeMode) renderOwnerBadge();
+      }, 30000);
       if (typeof window.fetch === 'function') {
         window.fetch(COUNTER_GET_URL, { cache: 'no-store' })
           .then(function (res) { return res.ok ? res.json() : null; })
           .then(function (data) {
-            if (data && typeof data.value === 'number' && ownerViewsCountEl) {
-              ownerViewsCountEl.textContent = String(data.value);
+            if (data && typeof data.value === 'number') {
+              ownerViewsValue = data.value;
+              renderOwnerBadge();
             }
           })
           .catch(function () {});

@@ -1,19 +1,3 @@
-/*
- * Player for somewhat_empty.
- *
- * Что здесь починено относительно старой версии:
- *  - длительность больше не залипает на «0:00», если метаданные успели
- *    загрузиться до подключения скрипта (проверяем readyState/duration сразу);
- *  - перемотка не «залипает» в режиме драга: состояние сбрасывается по
- *    pointerup/pointercancel на окне, а не только на самом слайдере;
- *  - пробел не срабатывает дважды, когда фокус на кнопке (click + keydown);
- *  - музыка не стартует от любого случайного клика по странице;
- *  - меню скорости не содержит фокусируемых кнопок в aria-hidden,
- *    закрыто через hidden и управляется с клавиатуры;
- *  - есть обработка ошибки загрузки, буферизации и бесконечной длительности;
- *  - громкость/скорость/повтор сохраняются между визитами;
- *  - добавлен Media Session (управление с экрана блокировки Android).
- */
 (function () {
   'use strict';
 
@@ -38,20 +22,115 @@
   var gate = $('enter-gate');
   var enterBtn = $('enter-btn');
   var soundHint = $('sound-hint');
+  var mskTimeEl = $('msk-time');
+  var mskTimeText = $('msk-time-text');
+  var particlesCanvas = $('bg-particles');
+  var langSwitch = $('lang-switch');
+  var ownerViewsEl = $('owner-views');
+  var ownerViewsCountEl = $('owner-views-count');
 
-  if (!audio || !player) return;
+  var OWNER_STORE_KEY = 'somewhat-empty.owner.v1';
+  var VISITED_STORE_KEY = 'somewhat-empty.visited.v1';
+  var OWNER_HASH = '2535c2ecc91cddd231a9f367dbccb3b341344c8626bc300259d64c3918750997';
+  var COUNTER_BASE = 'https:' + '/' + '/abacus.jasoncameron.dev/';
+  var COUNTER_GET_URL = COUNTER_BASE + 'get/empty.is-a.dev/unique-visitors';
+  var COUNTER_HIT_URL = COUNTER_BASE + 'hit/empty.is-a.dev/unique-visitors';
+  var SITE_CREATED_MS = 1791982055000;
+  var SITE_CREATED_DATE = '14.10.2026';
+  var ownerViewsValue = 0;
+  var ownerAgeMode = false;
 
-  /*
-   * Режим автозапуска:
-   *   'gate'  — если звук без жеста запрещён, показываем экран «click to enter»
-   *             (как на zet.is-a.dev): один клик — и трек играет со звуком;
-   *   'muted' — трек стартует сразу без звука (это разрешают все браузеры),
-   *             а звук включается по первому клику/тапу/клавише;
-   *   'off'   — ничего не делаем, ждём нажатия кнопки play.
-   */
+  var currentLang = 'ru';
+  var statusKey = '';
+  var lastTimeStr = '--:--';
+  var revealed = false;
+  var revealTransitioning = false;
+
+  document.body.classList.add('has-reveal');
+
+  function triggerReveal() {
+    if (revealed) return;
+    revealed = true;
+    revealTransitioning = true;
+    document.body.classList.add('is-revealed');
+    window.setTimeout(function () {
+      revealTransitioning = false;
+      document.body.classList.add('reveal-done');
+    }, 1750);
+  }
+
+  var I18N = {
+    ru: {
+      skip: 'Перейти к содержимому',
+      unmuteHint: 'включить звук',
+      xiosDesc: 'Меняет внешний вид телеграм под iOS стиль.',
+      xassistDesc: 'Умный помощник на базе ИИ прямо в телеграм.',
+      xdevelopDesc: 'Мой канал со всеми проектами и последними обновлениями для них.',
+      channelCta: 'Перейти',
+      mskPrefix: 'МСК · ',
+      mskLabel: 'Московское время',
+      play: 'Воспроизвести',
+      pause: 'Пауза',
+      retry: 'Повторить загрузку',
+      seekLabel: 'Перемотка',
+      seekOf: ' из ',
+      volumeLabel: 'Громкость',
+      mute: 'Выключить звук',
+      unmute: 'Включить звук',
+      loopOn: 'Повтор трека: включён',
+      loopOff: 'Повтор трека: выключен',
+      speedLabel: 'Скорость воспроизведения',
+      statusBlocked: 'Нажмите ▶, чтобы включить звук',
+      statusError: 'Аудио не загрузилось — нажмите ▶ для повтора',
+      statusLoading: 'Буферизация…',
+      viewsTitle: 'Уникальные посетители',
+      ageTitle: 'Дата создания сайта'
+    },
+    en: {
+      skip: 'Skip to content',
+      unmuteHint: 'unmute',
+      xiosDesc: 'Transforms Telegram appearance into an iOS-inspired style.',
+      xassistDesc: 'Smart AI-powered assistant right inside Telegram.',
+      xdevelopDesc: 'My channel featuring all projects and their latest updates.',
+      channelCta: 'Open',
+      mskPrefix: 'MSK · ',
+      mskLabel: 'Moscow time',
+      play: 'Play',
+      pause: 'Pause',
+      retry: 'Retry loading',
+      seekLabel: 'Seek',
+      seekOf: ' of ',
+      volumeLabel: 'Volume',
+      mute: 'Mute',
+      unmute: 'Unmute',
+      loopOn: 'Loop: on',
+      loopOff: 'Loop: off',
+      speedLabel: 'Playback speed',
+      statusBlocked: 'Press ▶ to enable sound',
+      statusError: 'Audio failed to load — press ▶ to retry',
+      statusLoading: 'Buffering…',
+      viewsTitle: 'Unique visitors',
+      ageTitle: 'Site creation date'
+    }
+  };
+
+  function t(key) {
+    var dict = I18N[currentLang] || I18N.ru;
+    return dict[key] || I18N.ru[key] || '';
+  }
+
+  initMoscowClock();
+  initBackgroundParticles();
+  initLangSwitch();
+  initVisitorCounter();
+
+  if (!audio || !player) {
+    applyLang();
+    return;
+  }
+
   var AUTOPLAY_MODE = 'gate';
-
-  var SEEK_MAX = 1000;          // слайдер живёт в промилле, а не в секундах
+  var SEEK_MAX = 1000;
   var STORE_KEY = 'somewhat-empty.player.v1';
   var TRACK = {
     title: 'Красавица (sped up)',
@@ -60,16 +139,16 @@
   };
 
   var prefs = loadPrefs();
-  var pendingTime = null;       // время, которое пользователь надрагивает
+  var pendingTime = null;
   var scrubbing = false;
   var rafId = 0;
-  var autoplayState = 'idle';   // idle | trying | done | muted | gate
+  var autoplayState = 'idle';
   var gateOpen = false;
   var entered = false;
-  var autoMuted = false;        // играем тихо в ожидании первого жеста
+  var autoMuted = false;
   var unlockBound = false;
-
-  // ---------- Утилиты ----------
+  var targetVolume = prefs.volume;
+  var fadeTimer = 0;
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
@@ -107,36 +186,27 @@
 
   var saveTimer = 0;
   function savePrefs() {
-    // пишем не чаще раза в 400 мс и в самом конце
     if (saveTimer) return;
     saveTimer = window.setTimeout(function () {
       saveTimer = 0;
       try {
         window.localStorage.setItem(STORE_KEY, JSON.stringify({
-          volume: audio.volume,
+          volume: targetVolume,
           muted: audio.muted,
           rate: audio.playbackRate,
           loop: audio.loop
         }));
-      } catch (err) { /* приватный режим — не страшно */ }
+      } catch (err) {}
     }, 400);
   }
 
-  var STATUS = {
-    blocked: 'Нажмите ▶, чтобы включить звук',
-    error: 'Аудио не загрузилось — нажмите ▶ для повтора',
-    loading: 'Буферизация…'
-  };
-
-  function setStatus(text) {
+  function setStatus(key) {
+    statusKey = key || '';
     if (!statusEl) return;
-    var next = text || '';
-    if (statusEl.textContent === next) return;
-    statusEl.textContent = next;
-    player.classList.toggle('has-error', next === STATUS.error);
+    var next = statusKey ? t(statusKey) : '';
+    if (statusEl.textContent !== next) statusEl.textContent = next;
+    player.classList.toggle('has-error', statusKey === 'statusError');
   }
-
-  // ---------- Отрисовка ----------
 
   function progressTime() {
     return pendingTime !== null ? pendingTime : (audio.currentTime || 0);
@@ -144,14 +214,14 @@
 
   function renderProgress() {
     var d = duration();
-    var t = clamp(progressTime(), 0, d || progressTime());
-    var ratio = d > 0 ? t / d : 0;
+    var cur = clamp(progressTime(), 0, d || progressTime());
+    var ratio = d > 0 ? cur / d : 0;
 
     seekFill.style.width = (ratio * 100).toFixed(3) + '%';
     if (!scrubbing) seek.value = String(Math.round(ratio * SEEK_MAX));
 
-    currentTimeEl.textContent = formatTime(t);
-    seek.setAttribute('aria-valuetext', formatTime(t) + ' из ' + formatTime(d));
+    currentTimeEl.textContent = formatTime(cur);
+    seek.setAttribute('aria-valuetext', formatTime(cur) + t('seekOf') + formatTime(d));
   }
 
   function renderBuffer() {
@@ -173,26 +243,31 @@
   }
 
   function renderVolume() {
-    var v = audio.muted ? 0 : audio.volume;
+    var baseVol = fadeTimer ? targetVolume : audio.volume;
+    var v = audio.muted ? 0 : baseVol;
     volumeFill.style.width = (v * 100).toFixed(1) + '%';
     if (document.activeElement !== volumeSlider) {
-      volumeSlider.value = String(Math.round(audio.volume * 100));
+      volumeSlider.value = String(Math.round(baseVol * 100));
     }
     volumeSlider.setAttribute('aria-valuetext', Math.round(v * 100) + '%');
 
-    var muted = audio.muted || audio.volume === 0;
+    var muted = audio.muted || baseVol === 0;
     player.classList.toggle('is-muted', muted);
     muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-    muteBtn.setAttribute('aria-label', muted ? 'Включить звук' : 'Выключить звук');
-    muteBtn.classList.toggle('is-quiet', !muted && audio.volume > 0 && audio.volume < 0.5);
+    muteBtn.setAttribute('aria-label', muted ? t('unmute') : t('mute'));
+    muteBtn.classList.toggle('is-quiet', !muted && baseVol > 0 && baseVol < 0.5);
   }
 
   function renderPlayState() {
     var playing = !audio.paused && !audio.ended;
     player.classList.toggle('is-playing', playing);
     document.body.classList.toggle('is-audio-playing', playing);
-    playBtn.setAttribute('aria-label', playing ? 'Пауза' : 'Воспроизвести');
-    if (playing && statusEl && statusEl.textContent !== STATUS.error) setStatus('');
+    if (statusKey === 'statusError') {
+      playBtn.setAttribute('aria-label', t('retry'));
+    } else {
+      playBtn.setAttribute('aria-label', playing ? t('pause') : t('play'));
+    }
+    if (playing && statusKey !== 'statusError') setStatus('');
     updatePositionState();
   }
 
@@ -215,10 +290,9 @@
     player.classList.toggle('is-looping', audio.loop);
     loopBtn.classList.toggle('is-active', audio.loop);
     loopBtn.setAttribute('aria-pressed', audio.loop ? 'true' : 'false');
-    loopBtn.setAttribute('aria-label', audio.loop ? 'Повтор трека: включён' : 'Повтор трека: выключен');
+    loopBtn.setAttribute('aria-label', audio.loop ? t('loopOn') : t('loopOff'));
   }
 
-  // Плавная перемотка по requestAnimationFrame вместо редких timeupdate
   function tick() {
     renderProgress();
     rafId = window.requestAnimationFrame(tick);
@@ -236,20 +310,45 @@
     renderProgress();
   }
 
-  // ---------- Воспроизведение ----------
+  function stopFade() {
+    if (fadeTimer) {
+      window.clearInterval(fadeTimer);
+      fadeTimer = 0;
+    }
+  }
+
+  function startSoftFadeIn() {
+    stopFade();
+    if (audio.muted || targetVolume <= 0.05) return;
+    var step = 0;
+    var steps = 8;
+    try { audio.volume = 0.02; } catch (err) { return; }
+    fadeTimer = window.setInterval(function () {
+      step++;
+      if (step >= steps || audio.paused) {
+        stopFade();
+        try { audio.volume = targetVolume; } catch (err) {}
+        return;
+      }
+      var ratio = step / steps;
+      try { audio.volume = clamp(targetVolume * ratio * ratio, 0.02, targetVolume); } catch (err) {}
+    }, 28);
+  }
 
   function play() {
     if (audio.error) {
-      // Пробуем загрузить источник заново.
       setStatus('');
       audio.load();
     }
+    startSoftFadeIn();
     var promise = audio.play();
     if (promise && typeof promise.then === 'function') {
       promise.then(function () {
         setStatus('');
       }).catch(function () {
-        if (!audio.error) setStatus(STATUS.blocked);
+        stopFade();
+        try { audio.volume = targetVolume; } catch (err) {}
+        if (!audio.error) setStatus('statusBlocked');
       });
     }
   }
@@ -264,13 +363,16 @@
     if (!d) return;
     try {
       audio.currentTime = clamp(time, 0, d);
-    } catch (err) { /* источник ещё не готов */ }
+    } catch (err) {}
     renderProgress();
   }
 
   playBtn.addEventListener('click', togglePlay);
 
-  audio.addEventListener('play', function () { renderPlayState(); startTicker(); });
+  audio.addEventListener('play', function () {
+    renderPlayState();
+    startTicker();
+  });
   audio.addEventListener('pause', function () { renderPlayState(); stopTicker(); });
   audio.addEventListener('ended', function () {
     renderPlayState();
@@ -282,13 +384,16 @@
   audio.addEventListener('waiting', function () { renderBuffering(true); });
   audio.addEventListener('seeking', function () { renderBuffering(true); });
   audio.addEventListener('canplay', function () { renderBuffering(false); });
-  audio.addEventListener('playing', function () { renderBuffering(false); setStatus(''); });
+  audio.addEventListener('playing', function () {
+    renderBuffering(false);
+    setStatus('');
+  });
 
   audio.addEventListener('loadedmetadata', renderDuration);
   audio.addEventListener('durationchange', renderDuration);
   audio.addEventListener('progress', renderBuffer);
   audio.addEventListener('timeupdate', function () {
-    if (!rafId) renderProgress();   // страховка, если rAF недоступен
+    if (!rafId) renderProgress();
   });
   audio.addEventListener('volumechange', function () { renderVolume(); savePrefs(); });
   audio.addEventListener('ratechange', function () { renderRate(); savePrefs(); updatePositionState(); });
@@ -296,11 +401,9 @@
   audio.addEventListener('error', function () {
     renderBuffering(false);
     stopTicker();
-    setStatus(STATUS.error);
-    playBtn.setAttribute('aria-label', 'Повторить загрузку');
+    setStatus('statusError');
+    playBtn.setAttribute('aria-label', t('retry'));
   });
-
-  // ---------- Перемотка ----------
 
   function beginScrub() {
     scrubbing = true;
@@ -326,7 +429,6 @@
   seek.addEventListener('input', updateScrub);
   seek.addEventListener('change', commitScrub);
 
-  // Сбрасываем драг, даже если палец/курсор ушёл за пределы слайдера.
   window.addEventListener('pointerup', function () {
     if (scrubbing) commitScrub();
   });
@@ -337,18 +439,22 @@
     if (scrubbing) commitScrub();
   });
 
-  // ---------- Громкость ----------
-
   function setVolume(v) {
-    audio.volume = clamp(v, 0, 1);
+    stopFade();
+    targetVolume = clamp(v, 0, 1);
+    audio.volume = targetVolume;
     if (audio.volume > 0 && audio.muted) audio.muted = false;
     renderVolume();
     savePrefs();
   }
 
   function toggleMute() {
+    stopFade();
     audio.muted = !audio.muted;
-    if (!audio.muted && audio.volume === 0) audio.volume = 0.8;
+    if (!audio.muted && targetVolume === 0) {
+      targetVolume = 0.8;
+      audio.volume = 0.8;
+    }
     renderVolume();
     savePrefs();
   }
@@ -367,8 +473,6 @@
     renderLoop();
     savePrefs();
   });
-
-  // ---------- Скорость ----------
 
   function setSpeed(rate) {
     audio.playbackRate = clamp(parseFloat(rate) || 1, 0.5, 4);
@@ -445,21 +549,18 @@
     if (e.key === 'Escape') closeMenu(false);
   });
 
-  // ---------- Горячие клавиши ----------
-
   function isTypingTarget(el) {
     if (!el || !el.tagName) return false;
     var tag = el.tagName.toUpperCase();
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
     if (el.isContentEditable) return true;
-    // Пробел/Enter на кнопке уже сам нажимает её — не дублируем.
     if (tag === 'BUTTON' || tag === 'A') return true;
     if (typeof el.closest === 'function' && el.closest('[role="menuitemradio"]')) return true;
     return false;
   }
 
   document.addEventListener('keydown', function (e) {
-    if (gateOpen) return;                  // заставка перехватывает клавиши
+    if (gateOpen) return;
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     if (isTypingTarget(e.target)) return;
 
@@ -495,8 +596,6 @@
     }
   });
 
-  // ---------- Media Session (экран блокировки / наушники) ----------
-
   function updatePositionState() {
     if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
     var d = duration();
@@ -507,7 +606,7 @@
         playbackRate: audio.playbackRate || 1,
         position: clamp(audio.currentTime || 0, 0, d)
       });
-    } catch (err) { /* не все браузеры принимают эти значения */ }
+    } catch (err) {}
   }
 
   function setupMediaSession() {
@@ -528,23 +627,10 @@
       };
 
       Object.keys(handlers).forEach(function (action) {
-        try { navigator.mediaSession.setActionHandler(action, handlers[action]); } catch (err) { /* не поддерживается */ }
+        try { navigator.mediaSession.setActionHandler(action, handlers[action]); } catch (err) {}
       });
-    } catch (err) { /* MediaMetadata недоступен */ }
+    } catch (err) {}
   }
-
-  // ---------- Автозапуск ----------
-  /*
-   * Браузер запрещает включать звук без жеста пользователя, и обойти это
-   * нельзя — можно только получить жест как можно раньше. Порядок такой:
-   *
-   *  1. пробуем со звуком: сработает, если браузер уже разрешает
-   *     (высокий Media Engagement Index для сайта, разрешение пользователя,
-   *     активация на странице уже есть);
-   *  2. не вышло → экран входа «click to enter» (режим 'gate') — клик по нему
-   *     и есть тот самый жест, после которого звук разрешён;
-   *     либо тихий старт (режим 'muted') + включение звука по первому жесту.
-   */
 
   function hasActivation() {
     try {
@@ -571,8 +657,8 @@
     gateOpen = true;
     autoplayState = 'gate';
     gate.hidden = false;
+    gate.classList.remove('is-closing');
     document.body.classList.add('gate-open');
-    // кадр на отрисовку, чтобы переход появления сработал
     window.requestAnimationFrame(function () {
       gate.classList.add('is-visible');
       if (enterBtn) enterBtn.focus();
@@ -584,13 +670,18 @@
     gateOpen = false;
     document.body.classList.remove('gate-open');
     gate.classList.remove('is-visible');
-    window.setTimeout(function () { gate.hidden = true; }, 420);
+    gate.classList.add('is-closing');
+    window.setTimeout(function () {
+      gate.hidden = true;
+      gate.classList.remove('is-closing');
+    }, 1060);
   }
 
   function enter(silent) {
     if (entered) return;
     entered = true;
     closeGate();
+    triggerReveal();
     if (silent) {
       autoplayState = 'done';
       return;
@@ -611,7 +702,6 @@
     player.classList.remove('is-silent');
   }
 
-  // Режим 'muted': трек уже идёт, звук включаем на первом же жесте.
   function armSoundUnlock() {
     showSoundHint();
     if (unlockBound) return;
@@ -630,27 +720,45 @@
     };
 
     ['pointerdown', 'keydown', 'touchend'].forEach(function (evt) {
-      document.addEventListener(evt, unlock, true);   // capture: срабатываем раньше всех
+      document.addEventListener(evt, unlock, true);
     });
   }
 
   function attemptAutoplay() {
-    if (AUTOPLAY_MODE === 'off' || autoplayState !== 'idle') return;
+    if (AUTOPLAY_MODE === 'off' || autoplayState !== 'idle') {
+      if (AUTOPLAY_MODE === 'off') triggerReveal();
+      return;
+    }
     autoplayState = 'trying';
+
+    var fallbackTimer = window.setTimeout(function () {
+      if (autoplayState === 'trying' && !gateOpen && !revealed) {
+        try { audio.pause(); } catch (err) {}
+        openGate();
+      }
+    }, 380);
 
     var promise = audio.play();
     if (!promise || typeof promise.then !== 'function') {
+      window.clearTimeout(fallbackTimer);
       autoplayState = 'done';
+      triggerReveal();
       return;
     }
 
     promise.then(function () {
+      window.clearTimeout(fallbackTimer);
+      if (gateOpen) closeGate();
       autoplayState = 'done';
+      triggerReveal();
       setStatus('');
     }).catch(function () {
+      window.clearTimeout(fallbackTimer);
+      if (gateOpen) return;
       if (audio.error) {
         autoplayState = 'done';
-        return;   // источник не грузится — заставка тут не поможет
+        triggerReveal();
+        return;
       }
 
       if (AUTOPLAY_MODE === 'muted') {
@@ -661,15 +769,17 @@
         if (quiet && typeof quiet.then === 'function') {
           quiet.then(function () {
             autoplayState = 'muted';
+            triggerReveal();
             armSoundUnlock();
           }).catch(function () {
             autoMuted = false;
             audio.muted = prefs.muted;
             renderVolume();
-            openGate();   // даже тихий старт запрещён — остаётся экран входа
+            openGate();
           });
         } else {
           autoplayState = 'muted';
+          triggerReveal();
           armSoundUnlock();
         }
         return;
@@ -679,25 +789,400 @@
     });
   }
 
-  if (gate) gate.addEventListener('click', function () { enter(false); });
+  if (gate) {
+    gate.addEventListener('click', function () { enter(false); });
+  }
   if (soundHint) soundHint.addEventListener('click', function (e) { e.stopPropagation(); startAudible(); });
 
   document.addEventListener('keydown', function (e) {
     if (!gateOpen) return;
     if (e.key === 'Escape') {
-      // Просто убираем заставку, сайт можно смотреть и без музыки.
       e.preventDefault();
       enter(true);
       return;
     }
-    // Любой Enter/пробел на заставке = войти со звуком.
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') {
       e.preventDefault();
       enter(false);
     }
   });
 
-  // ---------- Инициализация ----------
+  function renderClockText() {
+    if (!mskTimeText) return;
+    mskTimeText.textContent = t('mskPrefix') + lastTimeStr;
+    if (mskTimeEl) mskTimeEl.setAttribute('aria-label', t('mskLabel'));
+  }
+
+  function initMoscowClock() {
+    if (!mskTimeText) return;
+    var formatter = null;
+    try {
+      formatter = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch (err) {}
+
+    function updateClock() {
+      var now = new Date();
+      var timeStr = '';
+      if (formatter) {
+        try {
+          timeStr = formatter.format(now);
+        } catch (err) {}
+      }
+      if (!timeStr) {
+        var utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+        var msk = new Date(utcMs + 3 * 3600000);
+        var hh = msk.getHours();
+        var mm = msk.getMinutes();
+        timeStr = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+      }
+      lastTimeStr = timeStr;
+      renderClockText();
+    }
+
+    updateClock();
+    window.setInterval(updateClock, 10000);
+  }
+
+  function applyLang() {
+    document.documentElement.lang = currentLang;
+
+    var nodes = document.querySelectorAll('[data-i18n]');
+    Array.prototype.forEach.call(nodes, function (el) {
+      var key = el.getAttribute('data-i18n');
+      var val = t(key);
+      if (val) el.textContent = val;
+    });
+
+    if (langSwitch) {
+      var btns = langSwitch.querySelectorAll('button[data-lang]');
+      Array.prototype.forEach.call(btns, function (btn) {
+        var active = btn.getAttribute('data-lang') === currentLang;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    renderOwnerBadge();
+    renderClockText();
+
+    if (!audio || !player) return;
+    if (seek) seek.setAttribute('aria-label', t('seekLabel'));
+    if (volumeSlider) volumeSlider.setAttribute('aria-label', t('volumeLabel'));
+    if (speedBtn) speedBtn.setAttribute('aria-label', t('speedLabel'));
+    if (speedMenu) speedMenu.setAttribute('aria-label', t('speedLabel'));
+    setStatus(statusKey);
+    renderPlayState();
+    renderVolume();
+    renderLoop();
+    renderProgress();
+  }
+
+  function setLang(lang) {
+    var next = lang === 'en' ? 'en' : 'ru';
+    if (next === currentLang) return;
+    currentLang = next;
+    applyLang();
+  }
+
+  function initLangSwitch() {
+    if (!langSwitch) return;
+    langSwitch.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('button[data-lang]') : null;
+      if (btn) {
+        var targetLang = btn.getAttribute('data-lang');
+        if (targetLang === currentLang) {
+          setLang(currentLang === 'ru' ? 'en' : 'ru');
+        } else {
+          setLang(targetLang);
+        }
+      } else {
+        setLang(currentLang === 'ru' ? 'en' : 'ru');
+      }
+    });
+  }
+
+  function sha256(ascii) {
+    function rightRotate(value, amount) {
+      return (value >>> amount) | (value << (32 - amount));
+    }
+    var mathPow = Math.pow;
+    var maxWord = mathPow(2, 32);
+    var i;
+    var j;
+    var result = '';
+    var words = [];
+    var asciiBitLength = ascii.length * 8;
+    var hash = [];
+    var k = [];
+    var primeCounter = 0;
+    var isComposite = {};
+    for (var candidate = 2; primeCounter < 64; candidate++) {
+      if (!isComposite[candidate]) {
+        for (i = 0; i < 313; i += candidate) {
+          isComposite[i] = candidate;
+        }
+        hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+        k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+      }
+    }
+    ascii += '\x80';
+    while ((ascii.length % 64) - 56) ascii += '\x00';
+    for (i = 0; i < ascii.length; i++) {
+      j = ascii.charCodeAt(i);
+      if (j >> 8) return '';
+      words[i >> 2] |= j << ((3 - (i % 4)) * 8);
+    }
+    words[words.length] = (asciiBitLength / maxWord) | 0;
+    words[words.length] = asciiBitLength;
+    for (j = 0; j < words.length;) {
+      var w = words.slice(j, (j += 16));
+      var oldHash = hash;
+      hash = hash.slice(0, 8);
+      for (i = 0; i < 64; i++) {
+        var w15 = w[i - 15];
+        var w2 = w[i - 2];
+        var a = hash[0];
+        var e = hash[4];
+        var temp1 =
+          hash[7] +
+          (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) +
+          ((e & hash[5]) ^ (~e & hash[6])) +
+          k[i] +
+          (w[i] =
+            i < 16
+              ? w[i]
+              : (w[i - 16] +
+                  (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) +
+                  w[i - 7] +
+                  (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) |
+                0);
+        var temp2 =
+          (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) +
+          ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+        hash = [(temp1 + temp2) | 0].concat(hash);
+        hash[4] = (hash[4] + temp1) | 0;
+      }
+      for (i = 0; i < 8; i++) {
+        hash[i] = (hash[i] + oldHash[i]) | 0;
+      }
+    }
+    for (i = 0; i < 8; i++) {
+      for (j = 3; j + 1; j--) {
+        var b = (hash[i] >> (j * 8)) & 255;
+        result += (b < 16 ? 0 : '') + b.toString(16);
+      }
+    }
+    return result;
+  }
+
+  function extractOwnerToken() {
+    var sources = [window.location.hash || '', window.location.search || ''];
+    for (var i = 0; i < sources.length; i++) {
+      var raw = sources[i].replace(/^[#?]/, '');
+      if (!raw) continue;
+      var parts = raw.split('&');
+      for (var j = 0; j < parts.length; j++) {
+        var kv = parts[j].split('=');
+        var k = decodeURIComponent(kv[0] || '');
+        if (k === 'key' || k === 'owner') {
+          return decodeURIComponent(kv.slice(1).join('=') || '').trim();
+        }
+      }
+    }
+    return '';
+  }
+
+  function formatSiteAge() {
+    var diffMin = Math.max(0, Math.floor((Date.now() - SITE_CREATED_MS) / 60000));
+    var days = Math.floor(diffMin / 1440);
+    var hours = Math.floor((diffMin % 1440) / 60);
+    var mins = diffMin % 60;
+    if (currentLang === 'en') {
+      return SITE_CREATED_DATE + ' · ' + days + 'd ' + hours + 'h ' + mins + 'm ago';
+    }
+    return SITE_CREATED_DATE + ' · ' + days + 'д ' + hours + 'ч ' + mins + 'м назад';
+  }
+
+  function renderOwnerBadge() {
+    if (!ownerViewsEl || !ownerViewsCountEl) return;
+    ownerViewsEl.classList.toggle('is-age-mode', ownerAgeMode);
+    var label = ownerAgeMode ? t('ageTitle') : t('viewsTitle');
+    ownerViewsEl.setAttribute('title', label);
+    ownerViewsEl.setAttribute('aria-label', label);
+    ownerViewsCountEl.textContent = ownerAgeMode ? formatSiteAge() : String(ownerViewsValue);
+  }
+
+  function initVisitorCounter() {
+    var token = extractOwnerToken();
+    if (token && sha256(token) === OWNER_HASH) {
+      try {
+        window.localStorage.setItem(OWNER_STORE_KEY, OWNER_HASH);
+        window.localStorage.setItem(VISITED_STORE_KEY, '1');
+      } catch (err) {}
+      if (window.history && typeof window.history.replaceState === 'function') {
+        try {
+          window.history.replaceState(null, '', window.location.pathname);
+        } catch (err) {}
+      }
+    }
+
+    var isOwner = false;
+    try {
+      isOwner = window.localStorage.getItem(OWNER_STORE_KEY) === OWNER_HASH;
+    } catch (err) {}
+
+    if (isOwner) {
+      if (ownerViewsEl) {
+        ownerViewsEl.hidden = false;
+        ownerViewsEl.addEventListener('click', function () {
+          ownerAgeMode = !ownerAgeMode;
+          renderOwnerBadge();
+        });
+      }
+      renderOwnerBadge();
+      window.setInterval(function () {
+        if (ownerAgeMode) renderOwnerBadge();
+      }, 30000);
+      if (typeof window.fetch === 'function') {
+        window.fetch(COUNTER_GET_URL, { cache: 'no-store' })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (data) {
+            if (data && typeof data.value === 'number') {
+              ownerViewsValue = data.value;
+              renderOwnerBadge();
+            }
+          })
+          .catch(function () {});
+      }
+      return;
+    }
+
+    var alreadyVisited = false;
+    try {
+      alreadyVisited = window.localStorage.getItem(VISITED_STORE_KEY) === '1';
+    } catch (err) {}
+
+    if (!alreadyVisited && typeof window.fetch === 'function') {
+      try {
+        window.localStorage.setItem(VISITED_STORE_KEY, '1');
+      } catch (err) {}
+      window.fetch(COUNTER_HIT_URL, { cache: 'no-store' }).catch(function () {});
+    }
+  }
+
+  function initBackgroundParticles() {
+    if (!particlesCanvas || !particlesCanvas.getContext) return;
+    var ctx = particlesCanvas.getContext('2d');
+    if (!ctx) return;
+
+    var reducedMotion = false;
+    try {
+      reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch (err) {}
+
+    var width = 0;
+    var height = 0;
+    var dpr = 1;
+    var particles = [];
+    var animId = 0;
+    var COLORS = [
+      '169, 139, 250',
+      '201, 184, 255',
+      '240, 171, 252',
+      '139, 92, 246'
+    ];
+
+    function resize() {
+      width = window.innerWidth || document.documentElement.clientWidth || 360;
+      height = window.innerHeight || document.documentElement.clientHeight || 640;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      particlesCanvas.width = Math.round(width * dpr);
+      particlesCanvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      var targetCount = width < 600 ? 26 : 40;
+      while (particles.length < targetCount) {
+        particles.push(createParticle(true));
+      }
+      if (particles.length > targetCount) {
+        particles.length = targetCount;
+      }
+    }
+
+    function createParticle(randomY) {
+      return {
+        x: Math.random() * (width || 360),
+        y: randomY ? Math.random() * (height || 640) : (height || 640) + 10,
+        r: 0.9 + Math.random() * 1.7,
+        vx: (Math.random() - 0.5) * 0.22,
+        vy: -(0.12 + Math.random() * 0.24),
+        alpha: 0.16 + Math.random() * 0.36,
+        phase: Math.random() * Math.PI * 2,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)]
+      };
+    }
+
+    function drawFrame() {
+      if (revealTransitioning) {
+        animId = window.requestAnimationFrame(drawFrame);
+        return;
+      }
+      ctx.clearRect(0, 0, width, height);
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+        if (!reducedMotion) {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.phase += 0.018;
+
+          if (p.y < -10) {
+            p.y = height + 10;
+            p.x = Math.random() * width;
+          }
+          if (p.x < -10) p.x = width + 10;
+          else if (p.x > width + 10) p.x = -10;
+        }
+
+        var twinkle = reducedMotion ? 1 : (0.75 + 0.25 * Math.sin(p.phase));
+        var a = clamp(p.alpha * twinkle, 0.06, 0.65);
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + p.color + ', ' + a.toFixed(3) + ')';
+        ctx.fill();
+      }
+
+      if (!reducedMotion && !document.hidden) {
+        animId = window.requestAnimationFrame(drawFrame);
+      } else {
+        animId = 0;
+      }
+    }
+
+    resize();
+    drawFrame();
+
+    window.addEventListener('resize', function () {
+      resize();
+      if (reducedMotion) drawFrame();
+    });
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) {
+        if (animId) {
+          window.cancelAnimationFrame(animId);
+          animId = 0;
+        }
+      } else if (!reducedMotion && !animId) {
+        animId = window.requestAnimationFrame(drawFrame);
+      }
+    });
+  }
 
   audio.volume = prefs.volume;
   audio.muted = prefs.muted;
@@ -711,18 +1196,12 @@
   seek.max = String(SEEK_MAX);
   volumeSlider.value = String(Math.round(prefs.volume * 100));
 
-  renderVolume();
+  applyLang();
   renderRate();
-  renderLoop();
-  renderPlayState();
   renderBuffering(false);
   setupMediaSession();
-
-  // Метаданные могли загрузиться до подключения скрипта — не ждём события.
   renderDuration();
 
-  // Активация уже есть (например, пользователь вернулся на страницу) —
-  // заставка не нужна, звук разрешат и так.
   attemptAutoplay();
   audio.addEventListener('canplay', function () {
     if (autoplayState === 'idle' || autoplayState === 'trying') attemptAutoplay();
@@ -730,18 +1209,20 @@
   if (hasActivation() && autoplayState === 'gate') enter(false);
 
   window.addEventListener('pagehide', function () {
+    stopFade();
     stopTicker();
+    try { audio.volume = 0; audio.pause(); } catch (err) {}
     if (saveTimer) {
       window.clearTimeout(saveTimer);
       saveTimer = 0;
       try {
         window.localStorage.setItem(STORE_KEY, JSON.stringify({
-          volume: audio.volume,
+          volume: targetVolume,
           muted: audio.muted,
           rate: audio.playbackRate,
           loop: audio.loop
         }));
-      } catch (err) { /* ignore */ }
+      } catch (err) {}
     }
   });
 })();

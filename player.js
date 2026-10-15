@@ -22,8 +22,6 @@
   var gate = $('enter-gate');
   var enterBtn = $('enter-btn');
   var soundHint = $('sound-hint');
-  var eq = $('eq');
-  var eqBars = eq ? Array.prototype.slice.call(eq.querySelectorAll('span')) : [];
   var mskTimeEl = $('msk-time');
   var mskTimeText = $('msk-time-text');
   var particlesCanvas = $('bg-particles');
@@ -150,18 +148,6 @@
   var autoMuted = false;
   var unlockBound = false;
 
-  var audioCtx = null;
-  var analyser = null;
-  var freqData = null;
-  var webAudioFailed = false;
-  var eqSmooth = [0.3, 0.3, 0.3, 0.3];
-  var EQ_BANDS = [
-    { from: 1, to: 3, boost: 1.05 },
-    { from: 4, to: 9, boost: 1.22 },
-    { from: 10, to: 20, boost: 1.42 },
-    { from: 21, to: 38, boost: 1.68 }
-  ];
-
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
   function formatTime(sec) {
@@ -218,105 +204,6 @@
     var next = statusKey ? t(statusKey) : '';
     if (statusEl.textContent !== next) statusEl.textContent = next;
     player.classList.toggle('has-error', statusKey === 'statusError');
-  }
-
-  function ensureAudioGraph() {
-    if (webAudioFailed || !eqBars.length) return;
-    if (!audioCtx) {
-      var Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) {
-        webAudioFailed = true;
-        return;
-      }
-      try {
-        audioCtx = new Ctx();
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 128;
-        analyser.smoothingTimeConstant = 0.72;
-        var source = audioCtx.createMediaElementSource(audio);
-        source.connect(analyser);
-        analyser.connect(audioCtx.destination);
-        freqData = new Uint8Array(analyser.frequencyBinCount);
-      } catch (err) {
-        webAudioFailed = true;
-        audioCtx = null;
-        analyser = null;
-        return;
-      }
-    }
-    if (audioCtx.state === 'suspended' && typeof audioCtx.resume === 'function') {
-      try {
-        var p = audioCtx.resume();
-        if (p && typeof p.then === 'function') {
-          p.then(function () {
-            if (eq && audioCtx.state === 'running') eq.classList.add('is-live');
-          }).catch(function () {});
-        }
-      } catch (err) {}
-    }
-    if (eq && audioCtx.state === 'running') {
-      eq.classList.add('is-live');
-    }
-  }
-
-  var audioGraphTimer = 0;
-  function scheduleAudioGraph() {
-    if (webAudioFailed || audioCtx) {
-      if (audioCtx) ensureAudioGraph();
-      return;
-    }
-    if (audioGraphTimer) return;
-    var delay = revealTransitioning ? 1150 : 80;
-    audioGraphTimer = window.setTimeout(function () {
-      audioGraphTimer = 0;
-      if (!audio.paused && !audio.ended) {
-        ensureAudioGraph();
-      }
-    }, delay);
-  }
-
-  function resetEqualizerBars() {
-    if (!eqBars.length) return;
-    for (var i = 0; i < eqBars.length; i++) {
-      eqSmooth[i] = 0.3;
-      eqBars[i].style.height = '';
-      eqBars[i].style.opacity = '';
-    }
-  }
-
-  function renderEqualizer() {
-    if (!analyser || !freqData || !eqBars.length || !audioCtx || audioCtx.state !== 'running') return;
-    if (eq && !eq.classList.contains('is-live')) eq.classList.add('is-live');
-
-    if (audio.paused || audio.ended || audio.muted || audio.volume === 0) {
-      for (var j = 0; j < eqBars.length; j++) {
-        eqSmooth[j] = eqSmooth[j] * 0.8 + 0.24 * 0.2;
-        eqBars[j].style.height = (eqSmooth[j] * 100).toFixed(1) + '%';
-        eqBars[j].style.opacity = '0.5';
-      }
-      return;
-    }
-
-    analyser.getByteFrequencyData(freqData);
-    var maxBin = freqData.length - 1;
-
-    for (var i = 0; i < eqBars.length; i++) {
-      var band = EQ_BANDS[i] || EQ_BANDS[0];
-      var start = clamp(band.from, 0, maxBin);
-      var end = clamp(band.to, start, maxBin);
-      var sum = 0;
-      var count = 0;
-      for (var b = start; b <= end; b++) {
-        sum += freqData[b];
-        count++;
-      }
-      var avg = count > 0 ? (sum / count) / 255 : 0;
-      var shaped = Math.pow(avg, 0.85) * band.boost;
-      var target = clamp(0.18 + shaped * 0.86, 0.18, 1);
-      eqSmooth[i] = eqSmooth[i] * 0.42 + target * 0.58;
-      eqBars[i].style.height = (eqSmooth[i] * 100).toFixed(1) + '%';
-      eqBars[i].style.opacity = (0.55 + eqSmooth[i] * 0.45).toFixed(2);
-    }
   }
 
   function progressTime() {
@@ -405,7 +292,6 @@
 
   function tick() {
     renderProgress();
-    renderEqualizer();
     rafId = window.requestAnimationFrame(tick);
   }
 
@@ -418,7 +304,6 @@
       window.cancelAnimationFrame(rafId);
       rafId = 0;
     }
-    resetEqualizerBars();
     renderProgress();
   }
 
@@ -427,13 +312,9 @@
       setStatus('');
       audio.load();
     }
-    if (audioCtx && audioCtx.state === 'suspended' && typeof audioCtx.resume === 'function') {
-      try { audioCtx.resume(); } catch (err) {}
-    }
     var promise = audio.play();
     if (promise && typeof promise.then === 'function') {
       promise.then(function () {
-        scheduleAudioGraph();
         setStatus('');
       }).catch(function () {
         if (!audio.error) setStatus('statusBlocked');
@@ -458,7 +339,6 @@
   playBtn.addEventListener('click', togglePlay);
 
   audio.addEventListener('play', function () {
-    scheduleAudioGraph();
     renderPlayState();
     startTicker();
   });
@@ -474,7 +354,6 @@
   audio.addEventListener('seeking', function () { renderBuffering(true); });
   audio.addEventListener('canplay', function () { renderBuffering(false); });
   audio.addEventListener('playing', function () {
-    scheduleAudioGraph();
     renderBuffering(false);
     setStatus('');
   });
@@ -733,7 +612,6 @@
     }
     hideSoundHint();
     if (audio.paused) play();
-    else scheduleAudioGraph();
     setStatus('');
   }
 
@@ -836,7 +714,6 @@
       if (gateOpen) closeGate();
       autoplayState = 'done';
       triggerReveal();
-      scheduleAudioGraph();
       setStatus('');
     }).catch(function () {
       window.clearTimeout(fallbackTimer);

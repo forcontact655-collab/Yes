@@ -21,7 +21,7 @@
   <link rel="canonical" href="https://empty.is-a.dev/">
   <title>Somewhat_empty — projects</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23120b22'/%3E%3Cpath d='M12 22.5a2.8 2.8 0 1 1-2.8-2.8c.4 0 .7 0 1 .2V9.2l9-2v9.6a2.8 2.8 0 1 1-2.8-2.8c.4 0 .7 0 1 .2V11l-5.4 1.2z' fill='%23a78bfa'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="style.css?v=13">
+  <link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
   <canvas class="bg-particles" id="bg-particles" aria-hidden="true"></canvas>
@@ -30,13 +30,17 @@
   <header class="site-header">
     <div class="page-shell">
       <div class="top-bar">
-        <div class="owner-views" id="owner-views" hidden aria-live="polite" title="Уникальные посетители">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <button class="owner-views" id="owner-views" type="button" hidden aria-live="polite" title="Уникальные посетители">
+          <svg class="owner-views__icon owner-views__icon--eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M2.2 12c1.9-4.1 5.6-6.8 9.8-6.8s7.9 2.7 9.8 6.8c-1.9 4.1-5.6 6.8-9.8 6.8S4.1 16.1 2.2 12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
             <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
           </svg>
+          <svg class="owner-views__icon owner-views__icon--age" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M12 7.5v4.8l3.2 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
           <span id="owner-views-count">0</span>
-        </div>
+        </button>
         <div class="lang-switch" id="lang-switch" role="group" aria-label="Language">
           <button class="lang-switch__btn is-active" type="button" data-lang="ru" aria-pressed="true">Ru</button>
           <button class="lang-switch__btn" type="button" data-lang="en" aria-pressed="false">Eng</button>
@@ -233,6 +237,6 @@
     </div>
   </div>
 
-  <script src="player.js?v=13"></script>
+  <script src="player.js?v=14"></script>
 </body>
 </html>

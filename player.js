@@ -46,20 +46,19 @@
   var statusKey = '';
   var lastTimeStr = '--:--';
   var revealed = false;
+  var revealTransitioning = false;
 
   document.body.classList.add('has-reveal');
 
   function triggerReveal() {
     if (revealed) return;
     revealed = true;
-    window.requestAnimationFrame(function () {
-      window.requestAnimationFrame(function () {
-        document.body.classList.add('is-revealed');
-        window.setTimeout(function () {
-          document.body.classList.add('reveal-done');
-        }, 1650);
-      });
-    });
+    revealTransitioning = true;
+    document.body.classList.add('is-revealed');
+    window.setTimeout(function () {
+      revealTransitioning = false;
+      document.body.classList.add('reveal-done');
+    }, 1750);
   }
 
   var I18N = {
@@ -260,6 +259,22 @@
     }
   }
 
+  var audioGraphTimer = 0;
+  function scheduleAudioGraph() {
+    if (webAudioFailed || audioCtx) {
+      if (audioCtx) ensureAudioGraph();
+      return;
+    }
+    if (audioGraphTimer) return;
+    var delay = revealTransitioning ? 1150 : 80;
+    audioGraphTimer = window.setTimeout(function () {
+      audioGraphTimer = 0;
+      if (!audio.paused && !audio.ended) {
+        ensureAudioGraph();
+      }
+    }, delay);
+  }
+
   function resetEqualizerBars() {
     if (!eqBars.length) return;
     for (var i = 0; i < eqBars.length; i++) {
@@ -418,7 +433,7 @@
     var promise = audio.play();
     if (promise && typeof promise.then === 'function') {
       promise.then(function () {
-        ensureAudioGraph();
+        scheduleAudioGraph();
         setStatus('');
       }).catch(function () {
         if (!audio.error) setStatus('statusBlocked');
@@ -443,7 +458,7 @@
   playBtn.addEventListener('click', togglePlay);
 
   audio.addEventListener('play', function () {
-    ensureAudioGraph();
+    scheduleAudioGraph();
     renderPlayState();
     startTicker();
   });
@@ -459,7 +474,7 @@
   audio.addEventListener('seeking', function () { renderBuffering(true); });
   audio.addEventListener('canplay', function () { renderBuffering(false); });
   audio.addEventListener('playing', function () {
-    ensureAudioGraph();
+    scheduleAudioGraph();
     renderBuffering(false);
     setStatus('');
   });
@@ -717,8 +732,8 @@
       savePrefs();
     }
     hideSoundHint();
-    ensureAudioGraph();
     if (audio.paused) play();
+    else scheduleAudioGraph();
     setStatus('');
   }
 
@@ -727,6 +742,7 @@
     gateOpen = true;
     autoplayState = 'gate';
     gate.hidden = false;
+    gate.classList.remove('is-closing');
     document.body.classList.add('gate-open');
     window.requestAnimationFrame(function () {
       gate.classList.add('is-visible');
@@ -739,7 +755,11 @@
     gateOpen = false;
     document.body.classList.remove('gate-open');
     gate.classList.remove('is-visible');
-    window.setTimeout(function () { gate.hidden = true; }, 420);
+    gate.classList.add('is-closing');
+    window.setTimeout(function () {
+      gate.hidden = true;
+      gate.classList.remove('is-closing');
+    }, 1060);
   }
 
   function enter(silent) {
@@ -814,9 +834,9 @@
     promise.then(function () {
       window.clearTimeout(fallbackTimer);
       if (gateOpen) closeGate();
-      ensureAudioGraph();
       autoplayState = 'done';
       triggerReveal();
+      scheduleAudioGraph();
       setStatus('');
     }).catch(function () {
       window.clearTimeout(fallbackTimer);
@@ -855,7 +875,9 @@
     });
   }
 
-  if (gate) gate.addEventListener('click', function () { enter(false); });
+  if (gate) {
+    gate.addEventListener('click', function () { enter(false); });
+  }
   if (soundHint) soundHint.addEventListener('click', function (e) { e.stopPropagation(); startAudible(); });
 
   document.addEventListener('keydown', function (e) {
@@ -1192,6 +1214,10 @@
     }
 
     function drawFrame() {
+      if (revealTransitioning) {
+        animId = window.requestAnimationFrame(drawFrame);
+        return;
+      }
       ctx.clearRect(0, 0, width, height);
       for (var i = 0; i < particles.length; i++) {
         var p = particles[i];

@@ -164,22 +164,123 @@ state = {
     "inflight_cbs": {},
     "tg_enabled": True,
     "auto_dm": True,
-    "active_chats": {-1002385588474},
+    "active_chats": [-1002385588474],
+    "ignored_chats": {2070854957, 2083515400, 1234060895},
     "global_inbox": [],
     "seen_mids": set(),
     "last_seen": {},
     "rx_vim": re.compile(r"(?:^|[^\wа-яё])(?:вим|vim)(?:$|[^\wа-яё])", re.IGNORECASE),
     "st_mem": {
-        5379582521199601370: "Evil Neuro plush glitch",
-        5379910776960099628: "Evil Neuro plush horns",
-        5379877834560942142: "Orange cat staring close-up",
-        5380042254498967751: "Fernando Alonso in folding chair next to crashed F1 car",
-        5377318918815786596: "Fat round blushing Boykisser :3",
-        5379576310676890902: "Potuzhny ded meme",
+        5379582521199601370: "vim_#0: Evil Neuro plush glitch",
+        5379910776960099628: "vim_#1: Evil Neuro plush horns",
+        5379877834560942142: "vim_#2: Orange cat staring close-up",
+        5380042254498967751: "vim_#3: Fernando Alonso in folding chair",
+        5377318918815786596: "vim_#4: Fat round blushing Boykisser :3",
+        5379576310676890902: "vim_#5: Потужный дед",
+        5379877924755256206: "vim_#6: Astolfo аллах так сказал",
+        5379964601490255852: "vim_#7: Guy in mental asylum",
+        5380023644405673875: "vim_#8: USB ВСЕ КРУТЫЕ ПОКА Я НЕ СКАЧАЮ ИХ ДОМ",
         5192788088484553648: "Astolfo hugging plushie: Увидел женщину день испорчен",
+        5220220873532780218: "Cute anime reaction sticker",
+        5251485594042775512: "Video sticker: pink-haired femboy Astolfo in sailor top blushing in front of mirror",
+        5262970302232546280: "Astolfo аллах так сказал",
+        5283007815022051542: "Guy in mental asylum",
+        5210765747843795252: "USB ВСЕ КРУТЫЕ ПОКА Я НЕ СКАЧАЮ ИХ ДОМ",
+        5204176378953475986: "Kita Ikuyo winking (Bocchi the Rock)",
+        5203935087690788006: "Kita Ikuyo standing in school uniform (Bocchi the Rock)",
+        5204116790577212361: "Kita Ikuyo singing into microphone in black t-shirt",
+        5190817669158287643: "Cute brown-haired anime girl making finger heart with pink eyes",
+        5429200057872184515: "pack_1955_#0: сын бляди, обиделся?",
+        5429154239161070369: "pack_1955_#1: Ебальник off",
+        5429302926633888576: "pack_1955_#2: завались душнила",
+        5431745865377149569: "pack_1955_#3: ЧЕ ТЫ СПИЗДАНУЛ БЛЯТЬ",
+        5429642585532558156: "pack_1955_#4: я стесняюсь иди нахуй",
+        5429355840630976278: "pack_1955_#5: тебе не приятно? а мне похуй",
+        5429193151564771917: "pack_1955_#6: СПОКИ НОКИ В ЩЁКИ ЧМОКИ",
+        5431399746847663928: "pack_1955_#7: Фу блять ВЫМРИ",
+        5431845495733511691: "pack_1955_#8: Я ТВОЁ МНЕНИЕ НА ХУЮ ВЕРТЕЛА",
+        5431886714534654002: "pack_1955_#9: ой тебе неприятно? а мне похуй",
+        5431388923530077106: "pack_1955_#10: АХАХАХА КАК СМИФНО",
+        5429338634991988462: "pack_1955_#11: СОСИ МОЮ ЖОПУ",
+        5429089509708951716: "pack_1955_#12: ВЫЙДЕШЬ ЗА МЕНЯ?",
+        5431696232735073675: "pack_1955_#13: НЕ ГРУСТИ А ТО ПИСЬКА НЕ БУДЕТ РАСТИ",
+        5431871098033563803: "pack_1955_#14: Ты аутист",
+        5429169387510726748: "pack_1955_#15: ЕБАЛО ЗАВАЛИ",
+        5431569174717555393: "pack_1955_#16: ААААААА ЛОШАРА",
+        5431819399512222384: "pack_1955_#17: ЧТО ТЫ ТАМ СПИЗДАНУЛ УЕБОК",
+        5431592346066119300: "pack_1955_#18: ЧТО ТЫ БЛЯТЬ высрал уебище",
+        5429181297455034020: "pack_1955_#19: НЕ ПИЗДИ я не матерюсь пидор",
+        5429460027947642380: "pack_1955_#20: ты лошара хехе",
+        5431494734344384087: "pack_1955_#21: СЪЕБАЛСЯ В СТРАХЕ",
+        5429262416502353592: "pack_1955_#22: Я ЗВЕЗДА А ТЫ ПИЗДА",
+        5429422687501971629: "pack_1955_#23: а знаешь иди нахуй",
+        5431470549383539274: "pack_1955_#24: хуй типе",
+        5429429967471539243: "pack_1955_#25: ЕБАНАЯ МАТЕША НИХУЯ НЕ ПОНИМАЮ",
+        5429200697822312098: "pack_1955_#26: А НЕ ПОЙТИ БЫ ТЕБЕ НАХУЙ ПИДОРОК?",
+        5429424981014507111: "pack_1955_#27: Мне пох, я куст",
+        5429396973532769199: "pack_1955_#28: меня ебёт чужое мнение",
+        5431578735314757780: "pack_1955_#29: Охтыжбля!",
+        5431398866379366852: "pack_1955_#30: Готовь ебальник",
+        5431705312295938775: "pack_1955_#31: ДА ТЫ ЧТО А НЕ ПИЗДИШЬ?",
+        5429561268916743490: "pack_1955_#32: КАКИЕ... СТРАСТИ",
+        5429257387095649760: "pack_1955_#33: да ты лох тупой офф ротик",
+        5429440747839452942: "pack_1955_#34: ну ты и.. чмоня",
+        5429249145053412554: "pack_1955_#35: ты дура в смысле ты завтра не придёшь",
+        5431421857339304196: "pack_1955_#36: ДОБРЕЕ БУДЬ МРАЗОТА",
+        5431761082446278559: "pack_1955_#37: сделай одолжение СХОДИ НАХУЙ",
+        5431376085872831297: "pack_1955_#38: КАКОЙ ТЫ КОТИК ВВЮВЮЩЮВУТЮТЮ",
+        5431618519596821102: "pack_1955_#39: Отебись Я играю в рб",
+        5431522041746453581: "pack_1955_#40: Всё Я обиделась",
+        5429500989050744638: "pack_1955_#41: ВЕНОМ",
+        5431499484578211774: "pack_1955_#42: КАК ЖЕ ТЫ МЕНЯ ЗАЕБАЛ",
+        5429312603195206888: "pack_1955_#43: Ебать смешно ХАХППХХАПХХ",
+        5429405348718999742: "pack_1955_#44: Смирись Чмо",
+        5431405068312145205: "pack_1955_#45: ебучку на беззвучку сучка",
+        5431434003506816115: "pack_1955_#46: ЕБАЛО СТЯНУЛ СЫН ПОМОЙКИ НИЩЕЙ",
+        5429176061889902198: "pack_1955_#47: ГАСИ КАБИНУ СПАТЬ ПОРА",
+        5431375733685513334: "pack_1955_#48: засунь свой пон себе в жопу",
+        5431344577992745067: "pack_1955_#49: МНЕ КАЖЕТСЯ ИЛИ ТЫ ДОЛБАЕБ",
+        5429304124929765642: "pack_1955_#50: я блядь маты осуждаю нахуй",
+        5431531305990908370: "pack_1955_#51: блять люди вы без мата блять можете общаться нахуй",
+        5431732361999968419: "pack_1955_#52: ЕШКЕРЕЕЕ",
+        5431604230240625753: "pack_1955_#53: ТЫ КОНЧЕННЫЙ?",
+        5429261274041054194: "pack_1955_#54: ПИЗДЕЦ ЗАВТРА В ШКОЛУ",
+        5431771867109155221: "pack_1955_#55: пака мама куш завет",
+        5431840066894850077: "pack_1955_#56: Прасти паже Я была права",
+        5431685357877879389: "pack_1955_#57: о нет меня оскорбил маленький мальчик в интернете",
+        5431712364632238443: "pack_1955_#58: ты такой милый.. Застрелись",
+        5429466844060741260: "pack_1955_#59: почему ты не хочешь быть моим рабом?",
+        5429301616668864873: "pack_1955_#60: поздравляю, ты теперь мой раб=)",
+        5431490645535517424: "pack_1955_#61: ПРЫГНУЛА В КАНАВУ ИСКАТЬ ТВОЮ МАМУ <3",
+        5431500764478465779: "pack_1955_#62: Бля, Как жаль Что твоя мать не сделала аборт",
+        5431360941818144759: "pack_1955_#63: АУТИСТ ЕБАНЫЙ ЗАВАЛИ СВОЙ ПИЗДАК",
+        5431879980025931182: "pack_1955_#64: Я ЗНАЮ",
+        5431704333043395793: "pack_1955_#65: ЯСНО ПОНЯТНО",
+        5431373414403172534: "pack_1955_#66: ПОХУЙ",
+        5431585375334197251: "pack_1955_#67: У МЕНЯ АЛЛЕРГИЯ НА ТАКИХ ПИДОРОВ КАК ТЫ",
+        5431631683671581259: "pack_1955_#68: сделай одолжение СХОДИ НАХУЙ",
+        5431590645259069252: "pack_1955_#69: как же хочется переехать тебя камазом :3",
+        5429125067743193447: "pack_1955_#70: он повысил на меня шрифт",
+        5429436744929931148: "pack_1955_#71: ну блять Иди нахуй",
+        5431858908916378317: "pack_1955_#72: ИЗОЛИРУЙСЯ ПЖ:\"",
+        5429245270992905531: "pack_1955_#73: твое мнение мусор",
+        5431809860389857674: "pack_1955_#74: как же хочется переехать тебя камазом",
+        5431494562545689930: "pack_1955_#75: СОРИ НО Я НЕ ЗНАЮ СЛОВ КРОМЕ \"ПИЗДЕЦ\"",
+        5431686826756695746: "pack_1955_#76: блять, ээээ ЧЕ ОТВЕТИТЬ ТО",
+        5429558378403754212: "pack_1955_#77: в смысле",
+        5431438942719204776: "pack_1955_#78: Я бы обняла тебя Но тут стекло",
+        5431571640028783591: "pack_1955_#79: хватит ебашит мелеон сообщений в минуту",
+        5431876745915557695: "pack_1955_#80: ААААААА НАСИЛУЮТ ИЗБИВАЮЮЮТТ",
+        5429288409644428904: "pack_1955_#81: ну ты же знаешь.... МНЕ ПОХУЙ",
+        5429249677629354128: "pack_1955_#82: ПАСТЬ ЗАКРОЙ КУРЕЦА ТУПАЯ",
+        5429241010385349849: "pack_1955_#83: сидиш в сети а мне ни пишиш(",
+        5429210017901342234: "pack_1955_#84: СПС ЗА ИГНОР ХУЙ Я ТЕБЕ ЕЩЕ РАЗ ПЕРВОЙ НАПИШУ",
     },
     "media_b64": "",
+    "media_jpg_b64": "",
     "vim_st_list": [],
+    "vim_docs": [],
+    "pack_docs": [],
 }
 
 
@@ -481,6 +582,34 @@ async def _tr_msg(m):
         return ""
 
 
+async def _render_jpg_b64(raw_bytes, size=140):
+    try:
+        with open("/tmp/in_m", "wb") as f:
+            f.write(raw_bytes)
+        p = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y", "-i", "/tmp/in_m", "-frames:v", "1",
+            "-vf", f"scale={size}:{size}:force_original_aspect_ratio=decrease",
+            "-q:v", "12", "/tmp/out_m.jpg",
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+        )
+        await p.wait()
+        if os.path.exists("/tmp/out_m.jpg"):
+            with open("/tmp/out_m.jpg", "rb") as f:
+                jb = f.read()
+            if jb:
+                b64 = base64.b64encode(jb).decode("ascii")
+                state["media_jpg_b64"] = b64
+                state["media_b64"] = b64
+                return b64
+    except Exception:
+        pass
+    if raw_bytes:
+        b64 = base64.b64encode(raw_bytes).decode("ascii")
+        state["media_b64"] = b64
+        return b64
+    return ""
+
+
 async def _preload_media(m):
     try:
         if m.sticker and m.document:
@@ -490,15 +619,13 @@ async def _preload_media(m):
             b = await m.download_media(bytes, thumb=-1)
             if not b:
                 b = await m.download_media(bytes)
-            if b:
-                state["media_b64"] = base64.b64encode(b).decode("ascii")
+            b64 = await _render_jpg_b64(b, 140) if b else ""
             em = getattr(m.file, "emoji", "") or ""
-            return f"NEW_ST:{did}:{em}"
+            return f"NEW_ST:{did}:{em}:B64:{b64}"
         if m.photo:
             b = await m.download_media(bytes)
-            if b:
-                state["media_b64"] = base64.b64encode(b).decode("ascii")
-            return "PHOTO_PRELOADED"
+            b64 = await _render_jpg_b64(b, 180) if b else ""
+            return f"PHOTO:B64:{b64}"
     except Exception:
         pass
     return ""
@@ -524,8 +651,8 @@ async def _push_inbox(m, cid):
         s = await _preload_media(m)
         t = f"[STICKER: {s}]"
     if not t and getattr(m, "photo", None):
-        await _preload_media(m)
-        t = "[PHOTO]"
+        s = await _preload_media(m)
+        t = f"[{s}]"
     if not t:
         return
     if t.startswith(("[Вим", "[VIM-", "[Система")) or t == ".":
@@ -539,7 +666,9 @@ async def _push_inbox(m, cid):
         if cid > 0 or bool(state["rx_vim"].search(t)):
             state["global_inbox"].append((m.id, cid, True, t, m.reply_to_msg_id, is_voice))
         return
-    if (cid > 0 and state.get("auto_dm", True)) or cid in state.get("active_chats", set()):
+    if cid in state.get("ignored_chats", set()):
+        return
+    if (cid > 0 and state.get("auto_dm", True)) or cid in state.get("active_chats", []):
         try:
             await client.send_read_acknowledge(cid, m)
         except Exception:
@@ -571,9 +700,9 @@ async def _scan_recent():
         ds = await client.get_dialogs(limit=12)
         for d in ds:
             cid = d.id
-            if cid == 7667805183:
+            if cid == 7667805183 or cid in state.get("ignored_chats", set()):
                 continue
-            if (d.is_user and not getattr(d.entity, "bot", False) and state.get("auto_dm", True)) or cid in state.get("active_chats", set()):
+            if (d.is_user and not getattr(d.entity, "bot", False) and state.get("auto_dm", True)) or cid in state.get("active_chats", []):
                 last_id = state["last_seen"].get(cid, 0)
                 if d.message and d.message.id > last_id:
                     ms = await client.get_messages(d.entity, limit=5)
@@ -628,21 +757,45 @@ async def _react(chat, mid, e="❤"):
         return False
 
 
+async def _load_packs():
+    try:
+        s1 = await client(functions.messages.GetStickerSetRequest(
+            stickerset=types.InputStickerSetShortName(short_name="vim_agent_pack_by_Somewhat_Empty"),
+            hash=0
+        ))
+        state["vim_st_list"] = list(s1.documents)
+        state["vim_docs"] = list(s1.documents)
+    except Exception:
+        pass
+    try:
+        s2 = await client(functions.messages.GetStickerSetRequest(
+            stickerset=types.InputStickerSetShortName(short_name="set_1955_by_makestick3_bot"),
+            hash=0
+        ))
+        state["pack_docs"] = list(s2.documents)
+    except Exception:
+        pass
+
+
 async def _send_st(chat, idx=0, reply_to=None):
     if not state.get("vim_st_list"):
-        try:
-            st = await client(functions.messages.GetStickerSetRequest(
-                stickerset=types.InputStickerSetShortName(short_name="vim_agent_pack_by_Somewhat_Empty"),
-                hash=0
-            ))
-            state["vim_st_list"] = list(st.documents)
-        except Exception:
-            pass
+        await _load_packs()
     docs = state.get("vim_st_list") or []
     if not docs:
         return None
     d = docs[int(idx) % len(docs)]
     m = await client.send_file(chat, d, reply_to=reply_to)
+    return m.id
+
+
+async def _send_p(chat, idx=0, rt=None):
+    if not state.get("pack_docs"):
+        await _load_packs()
+    docs = state.get("pack_docs") or []
+    if not docs:
+        return None
+    d = docs[int(idx) % len(docs)]
+    m = await client.send_file(chat, d, reply_to=rt)
     return m.id
 
 
@@ -732,7 +885,9 @@ state["preload_media"] = _preload_media
 state["poll_bg"] = _poll_bg
 state["rp"] = _rp
 state["react"] = _react
+state["load_packs"] = _load_packs
 state["send_st"] = _send_st
+state["send_p"] = _send_p
 state["send_ly"] = _send_ly
 state["send_tt"] = _send_tt
 state["send_voice"] = _send_voice
@@ -865,6 +1020,7 @@ async def main_loop():
                 state["last_seen"][d.id] = d.message.id
     except Exception:
         pass
+    await _load_packs()
     state["vim_handler"] = client.add_event_handler(on_vim_message, events.NewMessage())
 
     asyncio.create_task(random_action_loop())

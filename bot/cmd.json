@@ -1,1 +1,1 @@
-{"id": "init-0", "action": "none"}
+{"id": "hello-1", "action": "send", "to": "me", "text": "Привет из Arena! Мост юзербота на связи :3"}

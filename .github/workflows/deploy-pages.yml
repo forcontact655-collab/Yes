@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - "arena/**"
+    paths-ignore:
+      - "bot/**"
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
+      - run: rm -rf bot
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

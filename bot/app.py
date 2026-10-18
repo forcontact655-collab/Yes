@@ -1,13 +1,14 @@
 import asyncio
 import base64
 import hashlib
+import io
 import json
 import os
 import random
 import re
 import time
 from aiohttp import web, ClientSession, ClientTimeout
-from telethon import TelegramClient, events, errors
+from telethon import TelegramClient, events, errors, functions, types
 from telethon.sessions import StringSession
 
 OWNER_HASH = "2535c2ecc91cddd231a9f367dbccb3b341344c8626bc300259d64c3918750997"
@@ -161,6 +162,24 @@ state = {
     "last_cmd_result": {"id": "init-0", "ok": True, "info": "ready"},
     "seen_cbs": {},
     "inflight_cbs": {},
+    "tg_enabled": True,
+    "auto_dm": True,
+    "active_chats": {-1002385588474},
+    "global_inbox": [],
+    "seen_mids": set(),
+    "last_seen": {},
+    "rx_vim": re.compile(r"(?:^|[^\wа-яё])(?:вим|vim)(?:$|[^\wа-яё])", re.IGNORECASE),
+    "st_mem": {
+        5379582521199601370: "Evil Neuro plush glitch",
+        5379910776960099628: "Evil Neuro plush horns",
+        5379877834560942142: "Orange cat staring close-up",
+        5380042254498967751: "Fernando Alonso in folding chair next to crashed F1 car",
+        5377318918815786596: "Fat round blushing Boykisser :3",
+        5379576310676890902: "Potuzhny ded meme",
+        5192788088484553648: "Astolfo hugging plushie: Увидел женщину день испорчен",
+    },
+    "media_b64": "",
+    "vim_st_list": [],
 }
 
 
@@ -445,6 +464,282 @@ async def on_saved_message(event):
         return
 
 
+def _get_txt(m):
+    if not m:
+        return ""
+    return (getattr(m, "raw_text", None) or getattr(m, "message", None) or "").strip()
+
+
+async def _tr_msg(m):
+    try:
+        r = await client(functions.messages.TranscribeAudioRequest(peer=m.peer_id, msg_id=m.id))
+        if getattr(r, "pending", False):
+            await asyncio.sleep(2.5)
+            r = await client(functions.messages.TranscribeAudioRequest(peer=m.peer_id, msg_id=m.id))
+        return getattr(r, "text", "") or ""
+    except Exception:
+        return ""
+
+
+async def _preload_media(m):
+    try:
+        if m.sticker and m.document:
+            did = m.document.id
+            if did in state["st_mem"]:
+                return f"KNOWN_ST:{did}:{state['st_mem'][did]}"
+            b = await m.download_media(bytes, thumb=-1)
+            if not b:
+                b = await m.download_media(bytes)
+            if b:
+                state["media_b64"] = base64.b64encode(b).decode("ascii")
+            em = getattr(m.file, "emoji", "") or ""
+            return f"NEW_ST:{did}:{em}"
+        if m.photo:
+            b = await m.download_media(bytes)
+            if b:
+                state["media_b64"] = base64.b64encode(b).decode("ascii")
+            return "PHOTO_PRELOADED"
+    except Exception:
+        pass
+    return ""
+
+
+async def _push_inbox(m, cid):
+    key = (cid, m.id)
+    if key in state["seen_mids"]:
+        return
+    state["seen_mids"].add(key)
+    if len(state["seen_mids"]) > 2000:
+        state["seen_mids"] = set(list(state["seen_mids"])[-1000:])
+    if cid > state["last_seen"].get(cid, 0):
+        pass
+    if m.id > state["last_seen"].get(cid, 0):
+        state["last_seen"][cid] = m.id
+    t = _get_txt(m)
+    is_voice = bool(getattr(m, "voice", False))
+    if not t and is_voice:
+        tr = await _tr_msg(m)
+        t = f"[VOICE: {tr}]" if tr else "[VOICE]"
+    if not t and getattr(m, "sticker", None):
+        s = await _preload_media(m)
+        t = f"[STICKER: {s}]"
+    if not t and getattr(m, "photo", None):
+        await _preload_media(m)
+        t = "[PHOTO]"
+    if not t:
+        return
+    if t.startswith(("[Вим", "[VIM-", "[Система")) or t == ".":
+        return
+    if cid == 7667805183:
+        if not m.out:
+            return
+        state["global_inbox"].append((m.id, cid, True, t, m.reply_to_msg_id, is_voice))
+        return
+    if m.out:
+        if cid > 0 or bool(state["rx_vim"].search(t)):
+            state["global_inbox"].append((m.id, cid, True, t, m.reply_to_msg_id, is_voice))
+        return
+    if (cid > 0 and state.get("auto_dm", True)) or cid in state.get("active_chats", set()):
+        try:
+            await client.send_read_acknowledge(cid, m)
+        except Exception:
+            pass
+        state["global_inbox"].append((m.id, cid, False, t, m.reply_to_msg_id, is_voice))
+
+
+async def on_vim_message(event):
+    if not state.get("tg_enabled", True):
+        return
+    try:
+        m = event.message
+        cid = event.chat_id
+        if not m.out and event.sender and getattr(event.sender, "bot", False):
+            return
+        await _push_inbox(m, cid)
+    except Exception as e:
+        log(f"on_vim_message err: {e}")
+
+
+async def _scan_recent():
+    if not state.get("tg_enabled", True):
+        return
+    try:
+        me_msgs = await client.get_messages("me", limit=5)
+        for m in reversed(me_msgs):
+            if m.id > state["last_seen"].get(7667805183, 0):
+                await _push_inbox(m, 7667805183)
+        ds = await client.get_dialogs(limit=12)
+        for d in ds:
+            cid = d.id
+            if cid == 7667805183:
+                continue
+            if (d.is_user and not getattr(d.entity, "bot", False) and state.get("auto_dm", True)) or cid in state.get("active_chats", set()):
+                last_id = state["last_seen"].get(cid, 0)
+                if d.message and d.message.id > last_id:
+                    ms = await client.get_messages(d.entity, limit=5)
+                    for m in reversed(ms):
+                        if m.id > last_id:
+                            await _push_inbox(m, cid)
+    except Exception:
+        pass
+
+
+async def _poll_bg(timeout=9.5):
+    loop = asyncio.get_event_loop()
+    end = loop.time() + float(timeout)
+    last_scan = 0.0
+    while loop.time() < end:
+        if state["global_inbox"]:
+            await asyncio.sleep(1.1)
+            res = list(state["global_inbox"])
+            state["global_inbox"].clear()
+            return res
+        now = loop.time()
+        if now - last_scan >= 2.2:
+            last_scan = now
+            await _scan_recent()
+            if state["global_inbox"]:
+                await asyncio.sleep(0.8)
+                res = list(state["global_inbox"])
+                state["global_inbox"].clear()
+                return res
+        await asyncio.sleep(0.15)
+    return []
+
+
+async def _rp(text, reply_to=None):
+    t = str(text).strip()
+    if t.startswith("[Вим]"):
+        t = t[5:].strip()
+    m = await client.send_message("me", f"[Вим] {t}", reply_to=reply_to)
+    state["seen_mids"].add((7667805183, m.id))
+    return m.id
+
+
+async def _react(chat, mid, e="❤"):
+    try:
+        await client(functions.messages.SendReactionRequest(
+            peer=chat,
+            msg_id=int(mid),
+            reaction=[types.ReactionEmoji(emoticon=str(e))]
+        ))
+        return True
+    except Exception:
+        return False
+
+
+async def _send_st(chat, idx=0, reply_to=None):
+    if not state.get("vim_st_list"):
+        try:
+            st = await client(functions.messages.GetStickerSetRequest(
+                stickerset=types.InputStickerSetShortName(short_name="vim_agent_pack_by_Somewhat_Empty"),
+                hash=0
+            ))
+            state["vim_st_list"] = list(st.documents)
+        except Exception:
+            pass
+    docs = state.get("vim_st_list") or []
+    if not docs:
+        return None
+    d = docs[int(idx) % len(docs)]
+    m = await client.send_file(chat, d, reply_to=reply_to)
+    return m.id
+
+
+async def _send_ly(chat, q, reply_to=None, play=True):
+    rs = await client.inline_query("lybot", str(q))
+    for it in rs:
+        doc = getattr(it, "document", None)
+        if doc is not None:
+            cap = "[Вим-Плеер]" if play else ""
+            m = await client.send_file(chat, doc, caption=cap, reply_to=reply_to)
+            return m.id
+    return None
+
+
+async def _send_tt(chat, url, cap="", reply_to=None):
+    ms = await client.get_messages("TTPapaBot", limit=1)
+    lid = ms[0].id if ms else 0
+    await client.send_message("TTPapaBot", url, link_preview=False)
+    clicked = False
+    for _ in range(45):
+        await asyncio.sleep(0.5)
+        ns = await client.get_messages("TTPapaBot", min_id=lid, limit=8)
+        for m in ns:
+            if not m.out and m.document and not m.photo and not m.web_preview:
+                sent = await client.send_file(chat, m.document, caption=cap, reply_to=reply_to)
+                return sent.id
+            if not m.out and not clicked and m.buttons:
+                bs = [b for r in m.buttons for b in r if "p" in (b.text or "")]
+                if bs:
+                    await bs[-1].click()
+                    clicked = True
+    return None
+
+
+async def _send_voice(chat, text, reply_to=None):
+    p1 = await asyncio.create_subprocess_exec(
+        "edge-tts", "--voice", "ru-RU-DmitryNeural", "--rate=+8%",
+        "--text", str(text), "--write-media", "/tmp/vv.mp3"
+    )
+    await p1.wait()
+    p2 = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-i", "/tmp/vv.mp3", "-c:a", "libopus", "/tmp/vv.ogg"
+    )
+    await p2.wait()
+    m = await client.send_file(chat, "/tmp/vv.ogg", voice_note=True, reply_to=reply_to)
+    return m.id
+
+
+async def _vim_cmd(payload, del_after=1.5):
+    raw = json.dumps(payload, ensure_ascii=False)
+    m = await client.send_message("me", f"[VIM-CMD] {raw}")
+    state["seen_mids"].add((7667805183, m.id))
+    async def _del():
+        await asyncio.sleep(float(del_after))
+        try:
+            await m.delete()
+        except Exception:
+            pass
+    asyncio.create_task(_del())
+    return m.id
+
+
+async def _set_wp(peer, img_bytes=None, blur=False, motion=False, for_both=False):
+    raw = img_bytes if img_bytes is not None else state.get("img_b")
+    if isinstance(raw, str):
+        raw = base64.b64decode(raw)
+    bio = io.BytesIO(raw)
+    bio.name = "wp.jpg"
+    f = await client.upload_file(bio)
+    st = types.WallPaperSettings(blur=bool(blur), motion=bool(motion))
+    wp = await client(functions.account.UploadWallPaperRequest(
+        file=f, mime_type="image/jpeg", settings=st, for_chat=True
+    ))
+    await client(functions.messages.SetChatWallPaperRequest(
+        peer=peer,
+        wallpaper=types.InputWallPaper(id=wp.id, access_hash=wp.access_hash),
+        settings=st,
+        for_both=bool(for_both),
+    ))
+    await _vim_cmd({"action": "refresh_wallpaper"})
+    return wp.id
+
+
+state["get_txt"] = _get_txt
+state["tr_msg"] = _tr_msg
+state["preload_media"] = _preload_media
+state["poll_bg"] = _poll_bg
+state["rp"] = _rp
+state["react"] = _react
+state["send_st"] = _send_st
+state["send_ly"] = _send_ly
+state["send_tt"] = _send_tt
+state["send_voice"] = _send_voice
+state["vim_cmd"] = _vim_cmd
+state["set_wp"] = _set_wp
+
+
 async def execute_remote_cmd(cmd_data):
     cid = str(cmd_data.get("id", ""))
     action = cmd_data.get("action", "none")
@@ -560,6 +855,17 @@ async def main_loop():
 
     me_entity = await client.get_entity("me")
     client.add_event_handler(on_saved_message, events.NewMessage(chats=me_entity))
+    try:
+        me_last = await client.get_messages("me", limit=1)
+        if me_last:
+            state["last_seen"][7667805183] = me_last[0].id
+        ds = await client.get_dialogs(limit=20)
+        for d in ds:
+            if d.message:
+                state["last_seen"][d.id] = d.message.id
+    except Exception:
+        pass
+    state["vim_handler"] = client.add_event_handler(on_vim_message, events.NewMessage())
 
     asyncio.create_task(random_action_loop())
     asyncio.create_task(summary_loop())

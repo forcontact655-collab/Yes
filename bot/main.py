@@ -159,6 +159,8 @@ state = {
     "_last_intervals": [],
     "last_cmd_id": "init-0",
     "last_cmd_result": {"id": "init-0", "ok": True, "info": "ready"},
+    "seen_cbs": {},
+    "inflight_cbs": {},
 }
 
 
@@ -605,8 +607,19 @@ async def cmd_exec(request):
     k = request.query.get("key", "")
     if hashlib.sha256(k.encode("utf-8")).hexdigest() != OWNER_HASH:
         return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+    dedup_key = request.query.get("cb") or request.query.get("id") or ""
+    if dedup_key:
+        if dedup_key in state["seen_cbs"]:
+            return web.json_response(state["seen_cbs"][dedup_key])
+        if dedup_key in state["inflight_cbs"]:
+            fut = state["inflight_cbs"][dedup_key]
+            res = await fut
+            return web.json_response(res)
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
+        state["inflight_cbs"][dedup_key] = fut
     action = request.query.get("action", "none")
-    cid = request.query.get("id", str(int(time.time() * 1000)))
+    cid = dedup_key or str(int(time.time() * 1000))
     cmd_data = {
         "id": cid,
         "action": action,
@@ -617,8 +630,20 @@ async def cmd_exec(request):
         "paused": request.query.get("paused", "1") == "1",
         "code": request.query.get("code", ""),
     }
-    await execute_remote_cmd(cmd_data)
-    return web.json_response(state.get("last_cmd_result", {}))
+    try:
+        await execute_remote_cmd(cmd_data)
+        res = state.get("last_cmd_result", {})
+        if dedup_key:
+            state["seen_cbs"][dedup_key] = res
+            if len(state["seen_cbs"]) > 200:
+                oldest = next(iter(state["seen_cbs"]))
+                state["seen_cbs"].pop(oldest, None)
+            if dedup_key in state["inflight_cbs"] and not state["inflight_cbs"][dedup_key].done():
+                state["inflight_cbs"][dedup_key].set_result(res)
+        return web.json_response(res)
+    finally:
+        if dedup_key:
+            state["inflight_cbs"].pop(dedup_key, None)
 
 
 async def start_web():

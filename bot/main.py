@@ -16,7 +16,7 @@ BOT_USERNAME = os.environ.get("BOT_USERNAME", "BioWars_bot")
 REPORT_TO = os.environ.get("REPORT_TO", "me")
 CMD_URL = os.environ.get(
     "CMD_URL",
-    "https:" + "/" + "/api.github.com/repos/forcontact655-collab/Yes/contents/bot/cmd.json?ref=arena/72a7520c-yes"
+    "https:" + "/" + "/raw.githubusercontent.com/forcontact655-collab/Yes/arena/72a7520c-yes/bot/cmd.json"
 )
 
 MINE_CMD = "Добыть"
@@ -477,21 +477,18 @@ async def execute_remote_cmd(cmd_data):
 
 async def remote_cmd_loop():
     session = ClientSession(timeout=ClientTimeout(total=15))
-    headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "yes-render-bridge"}
+    headers = {"User-Agent": "yes-render-bridge", "Cache-Control": "no-cache"}
     while state["running"]:
         try:
-            url = f"{CMD_URL}&_t={int(time.time())}"
+            url = f"{CMD_URL}?_t={int(time.time())}"
             async with session.get(url, headers=headers) as resp:
                 if resp.status == 200:
-                    data = await resp.json()
-                    content_b64 = data.get("content", "")
-                    if content_b64:
-                        raw = base64.b64decode(content_b64).decode("utf-8")
-                        cmd_data = json.loads(raw)
-                        await execute_remote_cmd(cmd_data)
+                    raw = await resp.text()
+                    cmd_data = json.loads(raw)
+                    await execute_remote_cmd(cmd_data)
         except Exception as e:
             log(f"remote_cmd_loop err: {e}")
-        await asyncio.sleep(6)
+        await asyncio.sleep(10)
 
 
 async def random_action_loop():
@@ -602,11 +599,32 @@ async def cmd_status(request):
     return web.json_response(state.get("last_cmd_result", {}))
 
 
+async def cmd_exec(request):
+    k = request.query.get("key", "")
+    if hashlib.sha256(k.encode("utf-8")).hexdigest() != OWNER_HASH:
+        return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+    action = request.query.get("action", "none")
+    cid = request.query.get("id", str(int(time.time() * 1000)))
+    cmd_data = {
+        "id": cid,
+        "action": action,
+        "to": request.query.get("to", "me"),
+        "chat": request.query.get("chat", "me"),
+        "text": request.query.get("text", ""),
+        "limit": request.query.get("limit", "5"),
+        "paused": request.query.get("paused", "1") == "1",
+        "code": request.query.get("code", ""),
+    }
+    await execute_remote_cmd(cmd_data)
+    return web.json_response(state.get("last_cmd_result", {}))
+
+
 async def start_web():
     app = web.Application()
     app.router.add_get("/", health)
     app.router.add_get("/health", health)
     app.router.add_get("/status", cmd_status)
+    app.router.add_get("/exec", cmd_exec)
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))

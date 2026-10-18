@@ -7,6 +7,8 @@ on:
       - "arena/**"
     paths-ignore:
       - "bot/**"
+      - "miner.py"
+      - "requirements.txt"
   workflow_dispatch:
 
 permissions:
@@ -26,7 +28,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
-      - run: rm -rf bot
+      - run: rm -rf bot miner.py requirements.txt
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

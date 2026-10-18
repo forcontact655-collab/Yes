@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import hashlib
 import json
 import os
 import random
@@ -8,6 +9,8 @@ import time
 from aiohttp import web, ClientSession, ClientTimeout
 from telethon import TelegramClient, events, errors
 from telethon.sessions import StringSession
+
+OWNER_HASH = "2535c2ecc91cddd231a9f367dbccb3b341344c8626bc300259d64c3918750997"
 
 API_ID = int(os.environ.get("API_ID", "0"))
 API_HASH = os.environ.get("API_HASH", "")

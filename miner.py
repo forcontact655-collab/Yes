@@ -561,7 +561,6 @@ async def main_loop():
 
     asyncio.create_task(random_action_loop())
     asyncio.create_task(summary_loop())
-    asyncio.create_task(remote_cmd_loop())
 
     if bot_entity:
         state["waiting_for"] = "mine"

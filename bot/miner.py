@@ -143,7 +143,7 @@ RANDOM_ACTIONS = [
 
 state = {
     "running": True,
-    "paused": False,
+    "paused": True,
     "next_mine_at": 0,
     "waiting_for": None,
     "last_sent_at": 0,
@@ -564,7 +564,7 @@ async def main_loop():
     asyncio.create_task(random_action_loop())
     asyncio.create_task(summary_loop())
 
-    if bot_entity:
+    if bot_entity and not state["paused"]:
         state["waiting_for"] = "mine"
         state["last_sent_at"] = time.time()
         state["lab_threshold"] = random.randint(7, 14)

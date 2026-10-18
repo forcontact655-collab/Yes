@@ -1,1 +1,1 @@
-{"id": "init-0", "action": "none"}
+{"id": "ping-1", "action": "send", "to": "me", "text": "Коннект из Arena установлен! Юзербот на связи :3"}

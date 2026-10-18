@@ -596,6 +596,9 @@ async def health(request):
 
 
 async def cmd_status(request):
+    k = request.query.get("key", "")
+    if hashlib.sha256(k.encode("utf-8")).hexdigest() != OWNER_HASH:
+        return web.json_response({"ok": True})
     return web.json_response(state.get("last_cmd_result", {}))
 
 

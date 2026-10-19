@@ -1119,9 +1119,9 @@ async def start_web():
 
 async def main():
     global client
-    client = TelegramClient(StringSession(SESSION_STR), API_ID, API_HASH)
     await start_web()
     if SESSION_STR and API_ID and API_HASH:
+        client = TelegramClient(StringSession(SESSION_STR), API_ID, API_HASH)
         asyncio.create_task(keepalive_loop())
         await main_loop()
     else:

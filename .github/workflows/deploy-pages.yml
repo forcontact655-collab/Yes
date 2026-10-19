@@ -8,6 +8,7 @@ on:
     paths-ignore:
       - "bot/**"
       - "miner.py"
+      - "bot.py"
       - "requirements.txt"
   workflow_dispatch:
 
@@ -28,7 +29,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
-      - run: rm -rf bot miner.py requirements.txt
+      - run: rm -rf bot miner.py bot.py requirements.txt
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

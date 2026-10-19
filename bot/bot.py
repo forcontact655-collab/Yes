@@ -587,9 +587,9 @@ async def _render_jpg_b64(raw_bytes, size=140):
         with open("/tmp/in_m", "wb") as f:
             f.write(raw_bytes)
         p = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-y", "-i", "/tmp/in_m", "-frames:v", "1",
+            "/usr/bin/ffmpeg", "-y", "-i", "/tmp/in_m", "-frames:v", "1",
             "-vf", f"scale={size}:{size}:force_original_aspect_ratio=decrease",
-            "-q:v", "12", "/tmp/out_m.jpg",
+            "-q:v", "15", "/tmp/out_m.jpg",
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
         )
         await p.wait()
@@ -623,7 +623,9 @@ async def _preload_media(m):
             em = getattr(m.file, "emoji", "") or ""
             return f"NEW_ST:{did}:{em}:B64:{b64}"
         if m.photo:
-            b = await m.download_media(bytes)
+            b = await m.download_media(bytes, thumb=-1)
+            if not b:
+                b = await m.download_media(bytes)
             b64 = await _render_jpg_b64(b, 180) if b else ""
             return f"PHOTO:B64:{b64}"
     except Exception:
@@ -638,8 +640,6 @@ async def _push_inbox(m, cid):
     state["seen_mids"].add(key)
     if len(state["seen_mids"]) > 2000:
         state["seen_mids"] = set(list(state["seen_mids"])[-1000:])
-    if cid > state["last_seen"].get(cid, 0):
-        pass
     if m.id > state["last_seen"].get(cid, 0):
         state["last_seen"][cid] = m.id
     t = _get_txt(m)
@@ -650,9 +650,9 @@ async def _push_inbox(m, cid):
     if not t and getattr(m, "sticker", None):
         s = await _preload_media(m)
         t = f"[STICKER: {s}]"
-    if not t and getattr(m, "photo", None):
+    if getattr(m, "photo", None):
         s = await _preload_media(m)
-        t = f"[{s}]"
+        t = f"{t} [{s}]" if t else f"[{s}]"
     if not t:
         return
     if t.startswith(("[Вим", "[VIM-", "[Система")) or t == ".":
@@ -663,16 +663,12 @@ async def _push_inbox(m, cid):
         state["global_inbox"].append((m.id, cid, True, t, m.reply_to_msg_id, is_voice))
         return
     if m.out:
-        if cid > 0 or bool(state["rx_vim"].search(t)):
+        if bool(state["rx_vim"].search(t)):
             state["global_inbox"].append((m.id, cid, True, t, m.reply_to_msg_id, is_voice))
         return
     if cid in state.get("ignored_chats", set()):
         return
     if (cid > 0 and state.get("auto_dm", True)) or cid in state.get("active_chats", []):
-        try:
-            await client.send_read_acknowledge(cid, m)
-        except Exception:
-            pass
         state["global_inbox"].append((m.id, cid, False, t, m.reply_to_msg_id, is_voice))
 
 
@@ -1126,7 +1122,12 @@ async def main():
     client = TelegramClient(StringSession(SESSION_STR), API_ID, API_HASH)
     await start_web()
     asyncio.create_task(keepalive_loop())
-    await main_loop()
+    if SESSION_STR and API_ID and API_HASH:
+        await main_loop()
+    else:
+        log("Worker mode (no SESSION_STR) — HTTP /exec active")
+        while state["running"]:
+            await asyncio.sleep(3600)
 
 
 if __name__ == "__main__":

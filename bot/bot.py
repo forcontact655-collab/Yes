@@ -582,32 +582,35 @@ async def _tr_msg(m):
         return ""
 
 
-async def _render_jpg_b64(raw_bytes, size=140):
+async def _render_jpg_b64(raw_bytes, size=280):
+    if not raw_bytes:
+        return ""
     try:
+        if os.path.exists("/tmp/out_m.jpg"):
+            os.remove("/tmp/out_m.jpg")
         with open("/tmp/in_m", "wb") as f:
             f.write(raw_bytes)
-        p = await asyncio.create_subprocess_exec(
-            "/usr/bin/ffmpeg", "-y", "-i", "/tmp/in_m", "-frames:v", "1",
-            "-vf", f"scale={size}:{size}:force_original_aspect_ratio=decrease",
-            "-q:v", "15", "/tmp/out_m.jpg",
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
-        )
-        await p.wait()
-        if os.path.exists("/tmp/out_m.jpg"):
-            with open("/tmp/out_m.jpg", "rb") as f:
-                jb = f.read()
-            if jb:
-                b64 = base64.b64encode(jb).decode("ascii")
-                state["media_jpg_b64"] = b64
-                state["media_b64"] = b64
-                return b64
+        for args in [["-f", "image2"], []]:
+            p = await asyncio.create_subprocess_exec(
+                "/usr/bin/ffmpeg", "-y", *args, "-i", "/tmp/in_m", "-frames:v", "1",
+                "-vf", f"scale={size}:{size}:force_original_aspect_ratio=decrease",
+                "-q:v", "15", "-update", "1", "/tmp/out_m.jpg",
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+            )
+            await p.wait()
+            if os.path.exists("/tmp/out_m.jpg"):
+                with open("/tmp/out_m.jpg", "rb") as f:
+                    jb = f.read()
+                if jb:
+                    b64 = base64.b64encode(jb).decode("ascii")
+                    state["media_jpg_b64"] = b64
+                    state["media_b64"] = b64
+                    return b64
     except Exception:
         pass
-    if raw_bytes:
-        b64 = base64.b64encode(raw_bytes).decode("ascii")
-        state["media_b64"] = b64
-        return b64
-    return ""
+    b64 = base64.b64encode(raw_bytes).decode("ascii")
+    state["media_b64"] = b64
+    return b64
 
 
 async def _preload_media(m):
@@ -616,17 +619,13 @@ async def _preload_media(m):
             did = m.document.id
             if did in state["st_mem"]:
                 return f"KNOWN_ST:{did}:{state['st_mem'][did]}"
-            b = await m.download_media(bytes, thumb=-1)
-            if not b:
-                b = await m.download_media(bytes)
+            b = await m.download_media(bytes)
             b64 = await _render_jpg_b64(b, 140) if b else ""
             em = getattr(m.file, "emoji", "") or ""
             return f"NEW_ST:{did}:{em}:B64:{b64}"
         if m.photo:
-            b = await m.download_media(bytes, thumb=-1)
-            if not b:
-                b = await m.download_media(bytes)
-            b64 = await _render_jpg_b64(b, 180) if b else ""
+            b = await m.download_media(bytes)
+            b64 = await _render_jpg_b64(b, 280) if b else ""
             return f"PHOTO:B64:{b64}"
     except Exception:
         pass
@@ -635,11 +634,12 @@ async def _preload_media(m):
 
 async def _push_inbox(m, cid):
     key = (cid, m.id)
-    if key in state["seen_mids"]:
+    if key in state["seen_mids"] or m.id in state["seen_mids"]:
         return
     state["seen_mids"].add(key)
-    if len(state["seen_mids"]) > 2000:
-        state["seen_mids"] = set(list(state["seen_mids"])[-1000:])
+    state["seen_mids"].add(m.id)
+    if len(state["seen_mids"]) > 3000:
+        state["seen_mids"] = set(list(state["seen_mids"])[-1500:])
     if m.id > state["last_seen"].get(cid, 0):
         state["last_seen"][cid] = m.id
     t = _get_txt(m)
@@ -653,6 +653,8 @@ async def _push_inbox(m, cid):
     if getattr(m, "photo", None):
         s = await _preload_media(m)
         t = f"{t} [{s}]" if t else f"[{s}]"
+    if not t and getattr(m, "video_note", False):
+        t = "[VIDEONOTE]"
     if not t:
         return
     if t.startswith(("[Вим", "[VIM-", "[Система")) or t == ".":
@@ -662,11 +664,11 @@ async def _push_inbox(m, cid):
             return
         state["global_inbox"].append((m.id, cid, True, t, m.reply_to_msg_id, is_voice))
         return
-    if m.out:
-        if bool(state["rx_vim"].search(t)):
-            state["global_inbox"].append((m.id, cid, True, t, m.reply_to_msg_id, is_voice))
-        return
     if cid in state.get("ignored_chats", set()):
+        return
+    if m.out:
+        if (cid > 0 and state.get("auto_dm", True)) or cid in state.get("active_chats", []) or bool(state["rx_vim"].search(t)):
+            state["global_inbox"].append((m.id, cid, True, t, m.reply_to_msg_id, is_voice))
         return
     if (cid > 0 and state.get("auto_dm", True)) or cid in state.get("active_chats", []):
         state["global_inbox"].append((m.id, cid, False, t, m.reply_to_msg_id, is_voice))
@@ -781,6 +783,9 @@ async def _send_st(chat, idx=0, reply_to=None):
         return None
     d = docs[int(idx) % len(docs)]
     m = await client.send_file(chat, d, reply_to=reply_to)
+    state["seen_mids"].add(m.id)
+    if isinstance(chat, int):
+        state["seen_mids"].add((chat, m.id))
     return m.id
 
 
@@ -792,6 +797,9 @@ async def _send_p(chat, idx=0, rt=None):
         return None
     d = docs[int(idx) % len(docs)]
     m = await client.send_file(chat, d, reply_to=rt)
+    state["seen_mids"].add(m.id)
+    if isinstance(chat, int):
+        state["seen_mids"].add((chat, m.id))
     return m.id
 
 
